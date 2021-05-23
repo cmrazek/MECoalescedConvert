@@ -1,0 +1,12 @@
+ME3 File Layout Notes:
+
+File Header:
+int		'mrmf'		signature?
+int		1			version?
+
+503ac
+
+String offset of "..\..\BIOGame\Config\BIOCompat.ini":	0x2049A
+
+Strings start at: 0x14EB2
+Strings end at: 0x503CC
