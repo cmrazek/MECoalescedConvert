@@ -19,11 +19,13 @@ namespace CoalescedConvert
 	class IniNoCurrentFileException : Exception
 	{
 		public IniNoCurrentFileException(int lineNumber) : base($"A section was declared on line {lineNumber} but no file name is present.") { }
+		public IniNoCurrentFileException(string message) : base(message) { }
 	}
 
 	class IniInvalidKeyNameException : Exception
 	{
 		public IniInvalidKeyNameException(int lineNumber) : base($"The key name on line {lineNumber} is invalid.") { }
+		public IniInvalidKeyNameException(string message) : base(message) { }
 	}
 
 	class IniNoCurrentSectionException : Exception

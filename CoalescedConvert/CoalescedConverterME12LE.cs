@@ -1,10 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace CoalescedConvert
 {
@@ -14,7 +10,8 @@ namespace CoalescedConvert
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))
 			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
-			using (var ini = new StreamWriter(iniFileName))
+			using (var iniMS = new MemoryStream())
+			using (var ini = new IniWriter(iniMS))
 			{
 				var fileCount = bin.ReadInt();
 
@@ -28,7 +25,7 @@ namespace CoalescedConvert
 						for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++)
 						{
 							var sectionName = bin.ReadString();
-							ini.WriteLine($"[{fileName}|{sectionName}]");
+							ini.WriteSection(fileName, sectionName);
 
 							var numItems = bin.ReadInt();
 
@@ -36,72 +33,62 @@ namespace CoalescedConvert
 							{
 								var str = bin.ReadString();
 								var str2 = bin.ReadString();
-								ini.WriteLine($"{str}={IniEncode(str2)}");
+								ini.WriteField(str, str2);
 							}
 						}
 					}
 					else
 					{
-						ini.WriteLine($"[{fileName}|]");    // So the file still gets created, even though there's nothing in it.
+						ini.WriteSection(fileName, null);	// So the file still gets created, even though there's nothing in it.
 					}
 				}
+
+				ini.Flush();
+				var iniContent = new byte[iniMS.Length];
+				iniMS.Seek(0, SeekOrigin.Begin);
+				iniMS.Read(iniContent);
+				File.WriteAllBytes(iniFileName, iniContent);
 			}
 		}
-
-		private static readonly Regex _rxComment = new Regex(@"^\s*;");
-		private static readonly Regex _rxSection = new Regex(@"^\[([^][]+)\]");
 
 		public void Encode(string iniFileName, string binFileName)
 		{
 			var doc = new EncDoc();
 			var currentSection = null as EncSection;
 			var currentFile = null as EncFile;
-			var lineNumber = 0;
-			int index;
 
-			using (var ini = new StreamReader(iniFileName))
+			using (var fs = new FileStream(iniFileName, FileMode.Open))
+			using (var ini = new IniReader(fs))
 			{
 				while (!ini.EndOfStream)
 				{
-					var line = ini.ReadLine();
-					if (line == null) break;
-					lineNumber++;
-					if (string.IsNullOrWhiteSpace(line) || _rxComment.IsMatch(line)) continue;
-
-					Match match;
-
-					if ((match = _rxSection.Match(line)).Success)
+					var read = ini.Read();
+					if (read.Type == IniReadResultType.Section)
 					{
-						var sectionName = match.Groups[1].Value;
-						index = sectionName.IndexOf('|');
-						if (index <= 0) throw new IniNoCurrentFileException(lineNumber);
-						var fileName = sectionName.Substring(0, index);
-						sectionName = sectionName.Substring(index + 1);
-
-						if (currentFile == null || fileName != currentFile.fileName)
+						if (currentFile == null || read.Value1 != currentFile.fileName)
 						{
-							doc.files.Add(currentFile = new EncFile { fileName = fileName });
+							doc.files.Add(currentFile = new EncFile { fileName = read.Value1 });
 						}
 
-						if (sectionName.Length > 0)
+						if (read.Value2.Length > 0)
 						{
-							currentFile.sections.Add(currentSection = new EncSection { name = sectionName });
+							currentFile.sections.Add(currentSection = new EncSection { name = read.Value2 });
 						}
 						else
 						{
 							currentSection = null;
 						}
-						continue;
 					}
-
-					index = line.IndexOf('=');
-					if (index <= 0) throw new IniInvalidKeyNameException(lineNumber);
-
-					var fieldName = line.Substring(0, index);
-					var fieldValue = IniDecode(line.Substring(index + 1));
-
-					if (currentSection == null) throw new IniNoCurrentSectionException(lineNumber);
-					currentSection.fields.Add(new EncField { name = fieldName, value = fieldValue });
+					else if (read.Type == IniReadResultType.Field)
+					{
+						if (currentSection == null) throw new IniNoCurrentSectionException(read.LineNumber);
+						currentSection.fields.Add(new EncField
+						{
+							name = read.Value1,
+							value = read.Value2
+						});
+					}
+					else break;
 				}
 			}
 
@@ -125,88 +112,6 @@ namespace CoalescedConvert
 					}
 				}
 			}
-		}
-
-		public static string IniEncode(string str)
-		{
-			var sb = new StringBuilder();
-
-			foreach (var ch in str)
-			{
-				switch (ch)
-				{
-					case '\\':
-						sb.Append("\\\\");
-						break;
-					case '\t':
-						sb.Append("\\t");
-						break;
-					case '\r':
-						sb.Append("\\r");
-						break;
-					case '\n':
-						sb.Append("\\n");
-						break;
-					default:
-						if (ch < ' ' || ch > '~') sb.Append($"\\x{(int)ch:X4}");
-						else sb.Append(ch);
-						break;
-				}
-			}
-
-			return sb.ToString();
-		}
-
-		public static string IniDecode(string str)
-		{
-			var sb = new StringBuilder();
-
-			for (int pos = 0, len = str.Length; pos < len; pos++)
-			{
-				var ch = str[pos];
-				if (ch == '\\' && pos + 1 < len)
-				{
-					switch (str[pos + 1])
-					{
-						case '\\':
-							sb.Append('\\');
-							pos++;
-							break;
-						case 't':
-							sb.Append('\t');
-							pos++;
-							break;
-						case 'r':
-							sb.Append('\r');
-							pos++;
-							break;
-						case 'n':
-							sb.Append('\n');
-							pos++;
-							break;
-						case 'x':
-							if (pos + 5 < len && uint.TryParse(str.Substring(pos + 2, 4), System.Globalization.NumberStyles.HexNumber, provider: null, out var code))
-							{
-								sb.Append((char)code);
-								pos += 5;
-							}
-							else
-							{
-								sb.Append('\\');
-							}
-							break;
-						default:
-							sb.Append('\\');
-							break;
-					}
-				}
-				else
-				{
-					sb.Append(ch);
-				}
-			}
-
-			return sb.ToString();
 		}
 
 		private class EncDoc

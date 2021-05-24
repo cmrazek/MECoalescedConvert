@@ -31,12 +31,12 @@ namespace CoalescedConvert
 				if (buf[0] == 'm' && buf[1] == 'r' && buf[2] == 'm' && buf[3] == 'f') return CoalescedFormat.MassEffect3LE;
 
 				// For ME12LE, starts with number of files. Make sure this is in a reasonable range.
-				int num2 = (buf[4]) | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 16);
-				if (num2 > 0 && num2 <= 0xff)
+				int num2 = (buf[0]) | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+				if (num2 > 0 && num2 < 256)
 				{
 					// Next field is the string prefix for the first file name. This is a negative number.
-					int num3 = (buf[8]) | (buf[9] << 8) | (buf[10] << 16) | (buf[11] << 16);
-					if (num3 < 0 && num3 >= -260)	// 260 = Win32 MAX_PATH
+					int num3 = (buf[4]) | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
+					if (num3 < 0 && num3 > -260)	// 260 = Win32 MAX_PATH
 					{
 						return CoalescedFormat.MassEffect12LE;
 					}

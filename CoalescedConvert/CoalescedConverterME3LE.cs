@@ -29,10 +29,7 @@ namespace CoalescedConvert
 				ReadCompressedData();
 			}
 
-			using (var ini = new StreamWriter(iniFileName))
-			{
-				WriteIni(ini);
-			}
+			WriteIni(iniFileName);
 		}
 
 		private void ReadHeader()
@@ -79,8 +76,6 @@ namespace CoalescedConvert
 				var stringLen = stringBuf[stringOffset] | (stringBuf[stringOffset + 1] << 8);
 				stringOffset += 2;
 				var str = Encoding.UTF8.GetString(stringBuf, (int)stringOffset, stringLen);
-
-				//ReportField($"String {i}", str);
 
 				var calcCrc = Crc32.Hash(str);
 				if (fileCrc != calcCrc) throw new CoalescedReadException($"CRC of string in file {fileCrc:X8} does not match calculated {calcCrc:X8}.");
@@ -179,32 +174,39 @@ namespace CoalescedConvert
 			}
 		}
 
-		private void WriteIni(StreamWriter ini)
+		private void WriteIni(string fileName)
 		{
-			foreach (var file in _doc.files)
+			using (var ms = new MemoryStream())
+			using (var ini = new IniWriter(ms))
 			{
-				if (!file.sections.Any())
+				foreach (var file in _doc.files)
 				{
-					ini.WriteLine($"[{file.fileName}|]");
-					continue;
-				}
-				foreach (var section in file.sections)
-				{
-					ini.WriteLine($"[{file.fileName}|{section.name}]");
-					foreach (var field in section.fields)
+					if (!file.sections.Any())
 					{
-						if (!field.values.Any())
+						ini.WriteSection(file.fileName, null);
+						continue;
+					}
+					foreach (var section in file.sections)
+					{
+						ini.WriteSection(file.fileName, section.name);
+						foreach (var field in section.fields)
 						{
-							ini.WriteLine($"{field.name}=");
-							continue;
-						}
+							if (!field.values.Any())
+							{
+								ini.WriteField(field.name, string.Empty);
+								continue;
+							}
 
-						foreach (var value in field.values)
-						{
-							ini.WriteLine($"{field.name}={CoalescedConverterME12LE.IniEncode(value)}");
+							ini.WriteField(field.name, field.values);
 						}
 					}
 				}
+
+				ini.Flush();
+				var iniContent = new byte[ms.Length];
+				ms.Seek(0, SeekOrigin.Begin);
+				ms.Read(iniContent);
+				File.WriteAllBytes(fileName, iniContent);
 			}
 		}
 	}
