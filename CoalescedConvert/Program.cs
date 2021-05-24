@@ -8,7 +8,7 @@ namespace CoalescedConvert
 		private string _inputFileName;
 		private string _outputFileName;
 		private bool _encode;
-		private bool _verbose;
+		private CoalescedFormat _format;
 
 		static void Main(string[] args)
 		{
@@ -38,6 +38,8 @@ namespace CoalescedConvert
 			Console.WriteLine();
 			Console.WriteLine("Switches");
 			Console.WriteLine("-h, --help  Show this help info.");
+			Console.WriteLine("-me12le     Use Mass Effect 1/2 Legendary Edition format.");
+			Console.WriteLine("-me3le      Use Mass Effect 3 Legendary Edition format.");
 			Console.WriteLine();
 
 			return false;
@@ -47,10 +49,27 @@ namespace CoalescedConvert
 		{
 			foreach (var arg in args)
 			{
-				if (arg == "-h" || arg == "--help") return ShowUsage(null);
-				else if (arg == "-v" || arg == "--verbose") _verbose = true;
-				else if (string.IsNullOrEmpty(_inputFileName)) _inputFileName = arg;
-				else return ShowUsage($"Unexpected argument '{arg}'.");
+				var argLower = arg.ToLower();
+				if (argLower == "-h" || argLower == "--help")
+				{
+					return ShowUsage(null);
+				}
+				else if (argLower == "-me12le")
+				{
+					_format = CoalescedFormat.MassEffect12LE;
+				}
+				else if (argLower == "-me3le")
+				{
+					_format = CoalescedFormat.MassEffect3LE;
+				}
+				else if (string.IsNullOrEmpty(_inputFileName))
+				{
+					_inputFileName = arg;
+				}
+				else
+				{
+					return ShowUsage($"Unexpected argument '{arg}'.");
+				}
 			}
 
 			if (string.IsNullOrEmpty(_inputFileName)) return ShowUsage("Input file name is required.");
@@ -78,11 +97,13 @@ namespace CoalescedConvert
 		{
 			if (!ProcessArguments(args)) return 1;
 
-			var converter = new CoalescedConverter();
 			if (_encode)
 			{
 				Console.WriteLine($"Converting INI:\n{_inputFileName}");
 				Console.WriteLine($"To BIN:\n{_outputFileName}");
+
+				if (_format == CoalescedFormat.Unknown) _format = CoalescedFormatDetector.Detect(_outputFileName);
+				if (_format == CoalescedFormat.Unknown) throw new UnknownCoalescedFormatException();
 
 				var backupFileName = _outputFileName + ".bak";
 				if (!File.Exists(backupFileName))
@@ -91,7 +112,19 @@ namespace CoalescedConvert
 					File.Copy(_outputFileName, backupFileName);
 				}
 
-				converter.Encode(_inputFileName, _outputFileName, _verbose);
+				switch (_format)
+				{
+					case CoalescedFormat.MassEffect12LE:
+						{
+							var converter = new CoalescedConverterME12LE();
+							converter.Encode(_inputFileName, _outputFileName);
+						}
+						break;
+					case CoalescedFormat.MassEffect3LE:
+						throw new NotSupportedException();
+					default:
+						throw new UnknownCoalescedFormatException();
+				}
 
 				Console.WriteLine("Success");
 			}
@@ -100,7 +133,26 @@ namespace CoalescedConvert
 				Console.WriteLine($"Converting BIN:\n{_inputFileName}");
 				Console.WriteLine($"To INI:\n{_outputFileName}");
 
-				converter.Decode(_inputFileName, _outputFileName, _verbose);
+				if (_format == CoalescedFormat.Unknown) _format = CoalescedFormatDetector.Detect(_inputFileName);
+				if (_format == CoalescedFormat.Unknown) throw new UnknownCoalescedFormatException();
+
+				switch (_format)
+				{
+					case CoalescedFormat.MassEffect12LE:
+						{
+							var converter = new CoalescedConverterME12LE();
+							converter.Decode(_inputFileName, _outputFileName);
+						}
+						break;
+					case CoalescedFormat.MassEffect3LE:
+						{
+							var converter = new CoalescedConverterME3LE();
+							converter.Decode(_inputFileName, _outputFileName);
+						}
+						break;
+					default:
+						throw new UnknownCoalescedFormatException();
+				}
 
 				Console.WriteLine("Success");
 			}

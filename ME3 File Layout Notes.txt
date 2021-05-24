@@ -6,7 +6,11 @@ int		1			version?
 
 503ac
 
-String offset of "..\..\BIOGame\Config\BIOCompat.ini":	0x2049A
+String offset of "..\..\BIOGame\Config\BIOCompat.ini":	0x 2049A
 
-Strings start at: 0x14EB2
+Strings start at: 0x14EB0
 Strings end at: 0x503CC
+Strings length: 0x3B51C
+10704 strings (0x29D0)
+
+File Length: 1430346 bytes

@@ -8,63 +8,41 @@ using System.Text.RegularExpressions;
 
 namespace CoalescedConvert
 {
-	class CoalescedConverter : IDisposable
+	class CoalescedConverterME12LE
 	{
-		private FileStream _bin;
-		private long _pos;
-		private bool _verbose;
-
-		public void Dispose()
+		public void Decode(string binFileName, string iniFileName)
 		{
-			if (_bin != null)
-			{
-				_bin.Dispose();
-				_bin = null;
-			}
-		}
-
-		public void Decode(string binFileName, string iniFileName, bool verbose)
-		{
-			using (_bin = new FileStream(binFileName, FileMode.Open))
+			using (var fs = new FileStream(binFileName, FileMode.Open))
+			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
 			using (var ini = new StreamWriter(iniFileName))
 			{
-				_verbose = verbose;
-
-				var fileCount = ReadInt();
-				Report("File Count", fileCount);
+				var fileCount = bin.ReadInt();
 
 				for (int fileIndex = 0; fileIndex < fileCount; fileIndex++)
 				{
-					var fileName = ReadString();
-					Report("File Name", fileName);
-
-					var sectionCount = ReadInt();
-					Report("Section Count", sectionCount);
+					var fileName = bin.ReadString();
+					var sectionCount = bin.ReadInt();
 
 					if (sectionCount > 0)
 					{
 						for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++)
 						{
-							var sectionName = ReadString();
-							Report("Section Name", sectionName);
+							var sectionName = bin.ReadString();
 							ini.WriteLine($"[{fileName}|{sectionName}]");
 
-							var numItems = ReadInt();
-							Report("Section Field Count", numItems);
+							var numItems = bin.ReadInt();
 
 							for (int i = 0; i < numItems; i++)
 							{
-								var fieldPos = _pos;
-								var str = ReadString();
-								var str2 = ReadString();
-								Report(str, str2);
+								var str = bin.ReadString();
+								var str2 = bin.ReadString();
 								ini.WriteLine($"{str}={IniEncode(str2)}");
 							}
 						}
 					}
 					else
 					{
-						ini.WriteLine($"[{fileName}|]");	// So the file still gets created, even though there's nothing in it.
+						ini.WriteLine($"[{fileName}|]");    // So the file still gets created, even though there's nothing in it.
 					}
 				}
 			}
@@ -73,7 +51,7 @@ namespace CoalescedConvert
 		private static readonly Regex _rxComment = new Regex(@"^\s*;");
 		private static readonly Regex _rxSection = new Regex(@"^\[([^][]+)\]");
 
-		public void Encode(string iniFileName, string binFileName, bool verbose)
+		public void Encode(string iniFileName, string binFileName)
 		{
 			var doc = new EncDoc();
 			var currentSection = null as EncSection;
@@ -127,92 +105,29 @@ namespace CoalescedConvert
 				}
 			}
 
-			using (_bin = new FileStream(binFileName, FileMode.Create))
+			using (var fs = new FileStream(binFileName, FileMode.Create))
+			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
 			{
-				WriteInt(doc.files.Count);
+				bin.WriteInt(doc.files.Count);
 				foreach (var file in doc.files)
 				{
-					WriteString(file.fileName);
-					WriteInt(file.sections.Count);
+					bin.WriteString(file.fileName);
+					bin.WriteInt(file.sections.Count);
 					foreach (var section in file.sections)
 					{
-						WriteString(section.name);
-						WriteInt(section.fields.Count);
+						bin.WriteString(section.name);
+						bin.WriteInt(section.fields.Count);
 						foreach (var field in section.fields)
 						{
-							WriteString(field.name);
-							WriteString(field.value);
+							bin.WriteString(field.name);
+							bin.WriteString(field.value);
 						}
 					}
 				}
 			}
 		}
 
-		private int ReadInt()
-		{
-			_pos = _bin.Position;
-			return _bin.ReadByte() | (_bin.ReadByte() << 8) | (_bin.ReadByte() << 16) | (_bin.ReadByte() << 24);
-		}
-
-		private void WriteInt(int value)
-		{
-			_bin.WriteByte((byte)(value & 0xff));
-			_bin.WriteByte((byte)((value >> 8) & 0xff));
-			_bin.WriteByte((byte)((value >> 16) & 0xff));
-			_bin.WriteByte((byte)((value >> 24) & 0xff));
-		}
-
-		private string ReadString()
-		{
-			_pos = _bin.Position;
-
-			var len = ReadInt();
-			if (len <= 0)
-			{
-				len = -len;
-				var sb = new StringBuilder();
-				for (int i = 0; i < len; i++)
-				{
-					char ch = (char)(_bin.ReadByte() | (_bin.ReadByte() << 8));
-					if (ch == 0) break;
-					sb.Append(ch);
-				}
-				return sb.ToString().TrimEnd('\0');
-			}
-			else
-			{
-				throw new CoelescedReadException($"String prefix [{len}] is greater than zero at position 0x{_pos:X8}");
-			}
-		}
-
-		private void WriteString(string str)
-		{
-			if (str.Length == 0)
-			{
-				WriteInt(0);
-			}
-			else
-			{
-				WriteInt(-(str.Length + 1));
-				foreach (var ch in str)
-				{
-					_bin.WriteByte((byte)(ch & 0xff));
-					_bin.WriteByte((byte)((ch >> 8) & 0xff));
-				}
-				_bin.WriteByte(0);
-				_bin.WriteByte(0);
-			}
-		}
-
-		private void Report(string label, object value, long pos = -1)
-		{
-			if (!_verbose) return;
-
-			if (pos < 0) pos = _pos;
-			Console.WriteLine($"[{pos:X8}] {label}: {value}");
-		}
-
-		private string IniEncode(string str)
+		public static string IniEncode(string str)
 		{
 			var sb = new StringBuilder();
 
@@ -242,7 +157,7 @@ namespace CoalescedConvert
 			return sb.ToString();
 		}
 
-		private string IniDecode(string str)
+		public static string IniDecode(string str)
 		{
 			var sb = new StringBuilder();
 
@@ -316,25 +231,5 @@ namespace CoalescedConvert
 			public string name;
 			public string value;
 		}
-	}
-
-	class CoelescedReadException : Exception
-	{
-		public CoelescedReadException(string message) : base(message) { }
-	}
-
-	class IniNoCurrentFileException : Exception
-	{
-		public IniNoCurrentFileException(int lineNumber) : base($"A section was declared on line {lineNumber} but no file name is present.") { }
-	}
-
-	class IniInvalidKeyNameException : Exception
-	{
-		public IniInvalidKeyNameException(int lineNumber) : base($"The key name on line {lineNumber} is invalid.") { }
-	}
-
-	class IniNoCurrentSectionException : Exception
-	{
-		public IniNoCurrentSectionException(int lineNumber) : base($"A value was declared on line {lineNumber} but no current section is set.") { }
 	}
 }

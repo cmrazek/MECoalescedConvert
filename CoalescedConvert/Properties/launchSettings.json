@@ -2,7 +2,7 @@
   "profiles": {
     "CoalescedConvert": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Dev\\CoalescedConvert\\Samples\\ME1_LE_orig.bin\""
+      "commandLineArgs": "\"C:\\Dev\\CoalescedConvert\\Samples\\ME3_LE_orig.bin\""
     }
   }
 }
