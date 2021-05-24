@@ -97,51 +97,46 @@ namespace CoalescedConvert
 			_doc = new ME3Doc();
 
 			var numFiles = _bin.ReadUShort();
-			_doc.files = new ME3File[numFiles];
 
 			for (int fileIndex = 0; fileIndex < numFiles; fileIndex++)
 			{
 				var fileName = _strings[_bin.ReadUShort()];
 				_bin.ReadUInt();
-				_doc.files[fileIndex] = new ME3File { fileName = fileName };
+				_doc.Files.Add(new ME3File(fileName));
 			}
 
 			for (int fileIndex = 0; fileIndex < numFiles; fileIndex++)
 			{
-				var file = _doc.files[fileIndex];
-
+				var file = _doc.Files[fileIndex];
 				var numSections = _bin.ReadUShort();
-				file.sections = new ME3Section[numSections];
 
 				for (int sectionIndex = 0; sectionIndex < numSections; sectionIndex++)
 				{
 					var sectionName = _strings[_bin.ReadUShort()];
 					_bin.ReadUInt();
-					file.sections[sectionIndex] = new ME3Section { name = sectionName };
+					file.Sections.Add(new ME3Section(sectionName));
 				}
 
 				for (int sectionIndex = 0; sectionIndex < numSections; sectionIndex++)
 				{
-					var section = file.sections[sectionIndex];
+					var section = file.Sections[sectionIndex];
 					var numFields = _bin.ReadUShort();
-					section.fields = new ME3Field[numFields];
 
 					for (int fieldIndex = 0; fieldIndex < numFields; fieldIndex++)
 					{
 						var fieldName = _strings[_bin.ReadUShort()];
 						_bin.ReadUInt();
-						section.fields[fieldIndex] = new ME3Field { name = fieldName };
+						section.Fields.Add(new ME3Field(fieldName));
 					}
 
 					for (int fieldIndex = 0; fieldIndex < numFields; fieldIndex++)
 					{
-						var field = section.fields[fieldIndex];
+						var field = section.Fields[fieldIndex];
 						var numValues = _bin.ReadUShort();
-						field.offsets = new uint[numValues];
 
 						for (int valueIndex = 0; valueIndex < numValues; valueIndex++)
 						{
-							field.offsets[valueIndex] = _bin.ReadUInt();
+							field.Offsets.Add(_bin.ReadUInt());
 						}
 					}
 				}
@@ -156,19 +151,17 @@ namespace CoalescedConvert
 			var values = new List<string>();
 			var decomp = new HuffmanDecompressor(_huffmanNodes);
 
-			foreach (var file in _doc.files)
+			foreach (var file in _doc.Files)
 			{
-				foreach (var section in file.sections)
+				foreach (var section in file.Sections)
 				{
-					foreach (var field in section.fields)
+					foreach (var field in section.Fields)
 					{
-						values.Clear();
-						foreach (var offset in field.offsets)
+						foreach (var offset in field.Offsets)
 						{
 							var str = decomp.Decompress(_compressedData, (int)(offset & 0xFFFFFFF));
-							values.Add(str);
+							field.Values.Add(str);
 						}
-						field.values = values.ToArray();
 					}
 				}
 			}
@@ -179,25 +172,25 @@ namespace CoalescedConvert
 			using (var ms = new MemoryStream())
 			using (var ini = new IniWriter(ms))
 			{
-				foreach (var file in _doc.files)
+				foreach (var file in _doc.Files)
 				{
-					if (!file.sections.Any())
+					if (!file.Sections.Any())
 					{
-						ini.WriteSection(file.fileName, null);
+						ini.WriteSection(file.FileName, null);
 						continue;
 					}
-					foreach (var section in file.sections)
+					foreach (var section in file.Sections)
 					{
-						ini.WriteSection(file.fileName, section.name);
-						foreach (var field in section.fields)
+						ini.WriteSection(file.FileName, section.Name);
+						foreach (var field in section.Fields)
 						{
-							if (!field.values.Any())
+							if (!field.Values.Any())
 							{
-								ini.WriteField(field.name, string.Empty);
+								ini.WriteField(field.Name, string.Empty);
 								continue;
 							}
 
-							ini.WriteField(field.name, field.values);
+							ini.WriteField(field.Name, field.Values);
 						}
 					}
 				}
@@ -209,29 +202,93 @@ namespace CoalescedConvert
 				File.WriteAllBytes(fileName, iniContent);
 			}
 		}
+
+		public void Encode(string iniFileName, string binFileName)
+		{
+			var doc = new ME3Doc();
+
+			using (var fs = new FileStream(iniFileName, FileMode.Open))
+			using (var ini = new IniReader(fs))
+			{
+				while (!ini.EndOfStream)
+				{
+					var read = ini.Read();
+					if (read.Type == IniReadResultType.Section)
+					{
+						if (doc.Files.Count == 0 || doc.Files.Last().FileName != read.Value1)
+						{
+							doc.Files.Add(new ME3File(read.Value1));
+						}
+
+						var file = doc.Files.Last();
+						if (file.Sections.Count == 0 || file.Sections.Last().Name != read.Value2)
+						{
+							file.Sections.Add(new ME3Section(read.Value2));
+						}
+					}
+					else if (read.Type == IniReadResultType.Field)
+					{
+						var section = doc.Files.LastOrDefault()?.Sections.LastOrDefault();
+						if (section == null) throw new IniNoCurrentSectionException(read.LineNumber);
+
+						var field = section.Fields.LastOrDefault();
+						if (field?.Name == read.Value1)
+						{
+							field.Values.Add(read.Value2);
+						}
+						else
+						{
+							section.Fields.Add(new ME3Field(read.Value1, read.Value2));
+						}
+					}
+					else break;
+				}
+			}
+		}
 	}
 
 	class ME3Doc
 	{
-		public ME3File[] files;
+		public List<ME3File> Files { get; private set; } = new List<ME3File>();
 	}
 
 	class ME3File
 	{
-		public string fileName;
-		public ME3Section[] sections;
+		public string FileName;
+		public List<ME3Section> Sections { get; private set; } = new List<ME3Section>();
+
+		public ME3File(string fileName)
+		{
+			FileName = fileName;
+		}
 	}
 
 	class ME3Section
 	{
-		public string name;
-		public ME3Field[] fields;
+		public string Name;
+		public List<ME3Field> Fields { get; private set; } = new List<ME3Field>();
+
+		public ME3Section(string name)
+		{
+			Name = name;
+		}
 	}
 
 	class ME3Field
 	{
-		public string name;
-		public uint[] offsets;
-		public string[] values;
+		public string Name { get; private set; }
+		public List<uint> Offsets { get; private set; } = new List<uint>();
+		public List<string> Values { get; private set; } = new List<string>();
+
+		public ME3Field(string name)
+		{
+			Name = name;
+		}
+
+		public ME3Field(string name, string value)
+		{
+			Name = name;
+			Values.Add(value);
+		}
 	}
 }
