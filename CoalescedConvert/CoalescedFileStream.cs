@@ -153,10 +153,16 @@ namespace CoalescedConvert
 				var len = ReadShort();
 				if (len < 0) throw new CoalescedReadException($"String prefix [{len}] is less than zero at position 0x{pos}");
 
+#if CC_UTF8
 				var bytes = new byte[len];
 				for (int i = 0; i < len; i++) bytes[i] = ReadByte();
 				_valuePos = pos;
 				return Encoding.UTF8.GetString(bytes);
+#else
+				var sb = new StringBuilder(len);
+				for (int i = 0; i < len; i++) sb.Append((char)ReadByte());
+				return sb.ToString();
+#endif
 			}
 			else throw new UnknownCoalescedFormatException();
 		}
@@ -183,6 +189,7 @@ namespace CoalescedConvert
 			}
 			else if (_format == CoalescedFormat.MassEffect3LE)
 			{
+#if CC_UTF8
 				var bytes = Encoding.UTF8.GetBytes(str);
 				if (bytes.Length == 0)
 				{
@@ -194,6 +201,17 @@ namespace CoalescedConvert
 					WriteShort((short)bytes.Length);
 					foreach (var n in bytes) WriteByte(n);
 				}
+#else
+				if (string.IsNullOrEmpty(str))
+				{
+					WriteShort(0);
+				}
+				else
+				{
+					WriteUShort((ushort)str.Length);
+					foreach (var ch in str) WriteByte((byte)ch);
+				}
+#endif
 			}
 			else throw new UnknownCoalescedFormatException();
 		}

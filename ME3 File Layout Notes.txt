@@ -14,3 +14,10 @@ Strings length: 0x3B51C
 10704 strings (0x29D0)
 
 File Length: 1430346 bytes
+
+
+--verbose -me3le "C:\Dev\CoalescedConvert\Samples\ME3\factory-output.ini" --out "C:\Dev\CoalescedConvert\Samples\ME3\generated.bin"
+
+"C:\Dev\CoalescedConvert\Samples\ME3\factory.bin" -o "C:\Dev\CoalescedConvert\Samples\ME3\factory-output.ini"
+
+"C:\Dev\CoalescedConvert\Samples\ME3\generated.bin" --verbose --out "C:\Dev\CoalescedConvert\Samples\ME3\generated-output.ini"

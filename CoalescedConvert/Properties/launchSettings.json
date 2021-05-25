@@ -2,7 +2,7 @@
   "profiles": {
     "CoalescedConvert": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Dev\\CoalescedConvert\\Samples\\ME3_LE_orig.bin\""
+      "commandLineArgs": "--verbose -me3le \"C:\\Dev\\CoalescedConvert\\Samples\\ME3\\factory-output.ini\" --out \"C:\\Dev\\CoalescedConvert\\Samples\\ME3\\generated.bin\""
     }
   }
 }

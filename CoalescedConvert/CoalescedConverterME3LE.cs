@@ -17,6 +17,8 @@ namespace CoalescedConvert
 		private uint _compressedDataLength;
 		private byte[] _compressedData;
 
+		private const uint Type_String = 4;
+
 		public void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))
@@ -32,6 +34,45 @@ namespace CoalescedConvert
 			WriteIni(iniFileName);
 		}
 
+		public void Encode(string iniFileName, string binFileName)
+		{
+			var doc = ReadIniToDocument(iniFileName);
+			var compressor = new HuffmanCompressor();
+
+			_strings = new List<string>();
+			_strings.Add(string.Empty);
+
+			// Create the tree buffer
+			var treeBuf = WriteTree(doc, compressor);
+			var stringTableBuf = WriteStringTable();
+
+			// File Header
+			var buf = new BinaryBuffer();
+			WriteHeader(buf, doc, stringTableBuf, treeBuf, compressor);
+
+			// Sections
+			Log.Debug("String section start: 0x{0:X8}", buf.Length);
+			buf.WriteBuffer(stringTableBuf);
+			Log.Debug("String section end: 0x{0:X8}", buf.Length);
+
+			Log.Debug("Huffman node section start: 0x{0:X8}", buf.Length);
+			WriteHuffmanNodes(compressor, buf);
+			Log.Debug("Huffman node section end: 0x{0:X8}", buf.Length);
+
+			Log.Debug("Tree section start: 0x{0:X8}", buf.Length);
+			buf.WriteBuffer(treeBuf);
+			Log.Debug("Tree section end: 0x{0:X8}", buf.Length);
+
+			Log.Debug("Compressed data section start: 0x{0:X8}", buf.Length);
+			WriteCompressedData(compressor, buf);
+			Log.Debug("Compressed data section end: 0x{0:X8}", buf.Length);
+
+			using (var fs = new FileStream(binFileName, FileMode.Create))
+			{
+				buf.WriteToStream(fs);
+			}
+		}
+
 		private void ReadHeader()
 		{
 			var sig = _bin.ReadInt();
@@ -40,7 +81,7 @@ namespace CoalescedConvert
 			var version = _bin.ReadInt();
 			if (version != 1) throw new CoalescedReadException("File version is not 1. This may be the incorrect format.");
 
-			var num2 = _bin.ReadInt();
+			var maxFieldNameLength = _bin.ReadInt();
 			var num3 = _bin.ReadInt();
 			var stringSectionLength = _bin.ReadInt();
 			var huffmanNodesSectionLength = _bin.ReadInt();
@@ -48,10 +89,42 @@ namespace CoalescedConvert
 			_compressedDataLength = _bin.ReadUInt();
 		}
 
+		private void WriteHeader(BinaryBuffer buf, ME3Doc doc, BinaryBuffer stringTableBuf, BinaryBuffer treeBuf, HuffmanCompressor compressor)
+		{
+			var maxFieldNameLength = 0;
+			var maxFieldValueLength = 0;
+			foreach (var file in doc.Files)
+			{
+				foreach (var section in file.Sections)
+				{
+					foreach (var field in section.Fields)
+					{
+						if (field.Name.Length > maxFieldNameLength) maxFieldNameLength = field.Name.Length;
+						foreach (var value in field.Values)
+						{
+							if (value.Length > maxFieldValueLength) maxFieldValueLength = value.Length;
+						}
+					}
+				}
+			}
+
+			buf.WriteInt(CoalescedFormatDetector.ME3Signature);
+			buf.WriteInt(1);
+			buf.WriteInt(maxFieldNameLength);
+			buf.WriteInt(maxFieldValueLength);
+			buf.WriteInt(stringTableBuf.Length);
+			buf.WriteInt(compressor.NodeData.Length);
+			buf.WriteInt(treeBuf.Length);
+			buf.WriteInt(compressor.CompressedData.Length);
+		}
+
 		private void ReadStringTable()
 		{
+			Log.Debug("String section: 0x{0:X8}", _bin.Position);
+
 			var stringTableLength = _bin.ReadInt();
 			var numStrings = _bin.ReadUInt();
+			Log.Debug("Number of strings: {0}", numStrings);
 
 			var stringIndexLength = numStrings * 8;
 			var stringIndex = new uint[numStrings * 2];
@@ -64,9 +137,12 @@ namespace CoalescedConvert
 
 			var stringBufferLength = stringTableLength - numStrings * 8 - 8;
 			var stringBuf = new byte[stringBufferLength];
+			Log.Debug("String data: 0x{0:X8}", _bin.Position);
 			_bin.Read(stringBuf);
 
 			_strings = new List<string>((int)numStrings);
+			var sb = new StringBuilder();
+
 			for (int i = 0; i < numStrings; i++)
 			{
 				var fileCrc = stringIndex[i * 2];
@@ -75,32 +151,86 @@ namespace CoalescedConvert
 				stringOffset -= stringIndexLength;
 				var stringLen = stringBuf[stringOffset] | (stringBuf[stringOffset + 1] << 8);
 				stringOffset += 2;
-				var str = Encoding.UTF8.GetString(stringBuf, (int)stringOffset, stringLen);
+
+				string str;
+#if CC_UTF8
+				str = Encoding.UTF8.GetString(stringBuf, (int)stringOffset, stringLen);
+#else
+				sb.Clear();
+				for (int c = (int)stringOffset, cc = (int)stringOffset + stringLen; c < cc; c++) sb.Append((char)stringBuf[c]);
+				str = sb.ToString();
+#endif
 
 				var calcCrc = Crc32.Hash(str);
 				if (fileCrc != calcCrc) throw new CoalescedReadException($"CRC of string in file {fileCrc:X8} does not match calculated {calcCrc:X8}.");
 
 				_strings.Add(str);
 			}
+
+			Log.Debug("String section ends at: 0x{0:X8}", _bin.Position);
+		}
+
+		private BinaryBuffer WriteStringTable()
+		{
+			var indexBuf = new BinaryBuffer();
+			var strBuf = new BinaryBuffer();
+
+			var stringOffset = _strings.Count * 8;
+			foreach (var str in _strings)
+			{
+				indexBuf.WriteUInt(Crc32.Hash(str));
+				indexBuf.WriteInt(stringOffset);
+
+				var beforeLen = strBuf.Length;
+				strBuf.WriteME3String(str);
+				var strLen = strBuf.Length - beforeLen;
+				stringOffset += strLen;
+			}
+
+			var stringTableLength = indexBuf.Length + strBuf.Length + 8;
+			var buf = new BinaryBuffer(stringTableLength);
+			buf.WriteInt(stringTableLength);
+			buf.WriteInt(_strings.Count);
+			buf.WriteBuffer(indexBuf);
+			buf.WriteBuffer(strBuf);
+			return buf;
 		}
 
 		private void ReadHuffmanNodes()
 		{
+			Log.Debug("Huffman nodes section start: 0x{0:X8}", _bin.Position);
+
 			var numHuffmanNodes = _bin.ReadUShort();
 
 			_huffmanNodes = new int[numHuffmanNodes * 2];
 			for (int i = 0, ii = _huffmanNodes.Length; i < ii; i++) _huffmanNodes[i] = _bin.ReadInt();
+
+			Log.Debug(() => string.Join(", ", _huffmanNodes));
+			Log.Debug("Huffman nodes section end: 0x{0:X8}", _bin.Position);
+		}
+
+		private void WriteHuffmanNodes(HuffmanCompressor compressor, BinaryBuffer buf)
+		{
+			var data = compressor.NodeData;
+			buf.WriteUShort((ushort)(data.Length / 2));
+			foreach (var n in data) buf.WriteInt(n);
+
+			Log.Debug(() => string.Join(", ", data));
 		}
 
 		private void ReadTree()
 		{
+			Log.Debug("Tree start: 0x{0:X8}", _bin.Position);
+
 			_doc = new ME3Doc();
 
 			var numFiles = _bin.ReadUShort();
+			Log.Debug("Number of files: {0}", numFiles);
 
 			for (int fileIndex = 0; fileIndex < numFiles; fileIndex++)
 			{
-				var fileName = _strings[_bin.ReadUShort()];
+				var fileNameId = _bin.ReadUShort();
+				var fileName = _strings[fileNameId];
 				_bin.ReadUInt();
 				_doc.Files.Add(new ME3File(fileName));
 			}
@@ -108,7 +238,10 @@ namespace CoalescedConvert
 			for (int fileIndex = 0; fileIndex < numFiles; fileIndex++)
 			{
 				var file = _doc.Files[fileIndex];
+				Log.Debug("File: {0} Position: 0x{1:X8}", file.FileName, _bin.Position);
+
 				var numSections = _bin.ReadUShort();
+				//Log.Debug("Number of sections: {0}", numSections);
 
 				for (int sectionIndex = 0; sectionIndex < numSections; sectionIndex++)
 				{
@@ -120,11 +253,15 @@ namespace CoalescedConvert
 				for (int sectionIndex = 0; sectionIndex < numSections; sectionIndex++)
 				{
 					var section = file.Sections[sectionIndex];
+					//Log.Debug("Section: {0} Position: 0x{1:X8}", section.Name, _bin.Position);
+
 					var numFields = _bin.ReadUShort();
+					//Log.Debug("Number of fields: {0}", numFields);
 
 					for (int fieldIndex = 0; fieldIndex < numFields; fieldIndex++)
 					{
-						var fieldName = _strings[_bin.ReadUShort()];
+						var fieldNameId = _bin.ReadUShort();
+						var fieldName = _strings[fieldNameId];
 						_bin.ReadUInt();
 						section.Fields.Add(new ME3Field(fieldName));
 					}
@@ -141,10 +278,79 @@ namespace CoalescedConvert
 					}
 				}
 			}
+
+			Log.Debug("Tree end: 0x{0:X8}", _bin.Position);
+		}
+
+		private BinaryBuffer WriteTree(ME3Doc doc, HuffmanCompressor compressor)
+		{
+			foreach (var file in doc.Files)
+			{
+				foreach (var section in file.Sections)
+				{
+					foreach (var field in section.Fields)
+					{
+						foreach (var value in field.Values)
+						{
+							compressor.Add(value);
+						}
+					}
+				}
+			}
+
+			compressor.Compress();
+
+			var treeBuf = new BinaryBuffer();
+			treeBuf.WriteUShort((ushort)doc.Files.Count);
+			Log.Debug("Number of files: {0}", doc.Files.Count);
+
+			var fileBuf = new BinaryBuffer();
+			var sectionBuf = new BinaryBuffer();
+			var fieldBuf = new BinaryBuffer();
+
+			foreach (var file in doc.Files)
+			{
+				treeBuf.WriteUShort(StoreString(file.FileName));
+				treeBuf.WriteInt(doc.Files.Count * 6 + 2 + fileBuf.Length);
+
+				fileBuf.WriteUShort((ushort)file.Sections.Count);
+				sectionBuf.Clear();
+
+				foreach (var section in file.Sections)
+				{
+					fileBuf.WriteUShort(StoreString(section.Name));
+					fileBuf.WriteInt(file.Sections.Count * 6 + 2 + sectionBuf.Length);
+
+					sectionBuf.WriteUShort((ushort)section.Fields.Count);
+					fieldBuf.Clear();
+
+					foreach (var field in section.Fields)
+					{
+						sectionBuf.WriteUShort(StoreString(field.Name));
+						sectionBuf.WriteInt(section.Fields.Count * 6 + 2 + fieldBuf.Length);
+
+						fieldBuf.WriteUShort((ushort)field.Values.Count);
+
+						foreach (var value in field.Values)
+						{
+							fieldBuf.WriteInt(compressor.GetStringPosition(value) | ((int)Type_String << 28));
+						}
+					}
+
+					sectionBuf.WriteBuffer(fieldBuf);
+				}
+
+				fileBuf.WriteBuffer(sectionBuf);
+			}
+
+			treeBuf.WriteBuffer(fileBuf);
+			return treeBuf;
 		}
 
 		private void ReadCompressedData()
 		{
+			Log.Debug("Compressed data section start: 0x{0:X8}", _bin.Position);
+
 			var unk = _bin.ReadUInt();
 			_compressedData = _bin.ReadBytes((int)_compressedDataLength);
 
@@ -160,11 +366,22 @@ namespace CoalescedConvert
 						foreach (var offset in field.Offsets)
 						{
 							var str = decomp.Decompress(_compressedData, (int)(offset & 0xFFFFFFF));
+							var type = offset >> 28;
+							if (type != Type_String) throw new UnsupportedValueType(type);
 							field.Values.Add(str);
 						}
 					}
 				}
 			}
+
+			Log.Debug("Compressed data section end: 0x{0:X8}", _bin.Position);
+		}
+
+		private void WriteCompressedData(HuffmanCompressor compressor, BinaryBuffer buf)
+		{
+			var compressedData = compressor.CompressedData;
+			buf.WriteInt(compressedData.Length);
+			buf.WriteBytes(compressedData);
 		}
 
 		private void WriteIni(string fileName)
@@ -203,11 +420,11 @@ namespace CoalescedConvert
 			}
 		}
 
-		public void Encode(string iniFileName, string binFileName)
+		private ME3Doc ReadIniToDocument(string fileName)
 		{
 			var doc = new ME3Doc();
 
-			using (var fs = new FileStream(iniFileName, FileMode.Open))
+			using (var fs = new FileStream(fileName, FileMode.Open))
 			using (var ini = new IniReader(fs))
 			{
 				while (!ini.EndOfStream)
@@ -244,6 +461,20 @@ namespace CoalescedConvert
 					else break;
 				}
 			}
+
+			return doc;
+		}
+
+		private ushort StoreString(string str)
+		{
+			var id = _strings.IndexOf(str);
+			if (id < 0)
+			{
+				id = _strings.Count;
+				_strings.Add(str);
+			}
+			if (id > ushort.MaxValue) throw new TooManyStringsException();
+			return (ushort)id;
 		}
 	}
 

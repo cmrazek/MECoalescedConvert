@@ -32,4 +32,13 @@ namespace CoalescedConvert
 	{
 		public IniNoCurrentSectionException(int lineNumber) : base($"A value was declared on line {lineNumber} but no current section is set.") { }
 	}
+
+	class TooManyStringsException : Exception { }
+
+	class StringTooLongException : Exception { }
+
+	class UnsupportedValueType : Exception
+	{
+		public UnsupportedValueType(uint type) : base($"A field contains an unsupported value type of '{type}'.") { }
+	}
 }

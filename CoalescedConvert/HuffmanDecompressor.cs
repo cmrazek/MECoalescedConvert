@@ -52,7 +52,7 @@ namespace CoalescedConvert
 				_nid = nid;
 			}
 
-			public char? CharValue => _nid > 0 ? null : (char)(-1 - _nid);
+			public char? CharValue => _nid >= 0 ? null : (char)(-1 - _nid);
 			public Node Left => new Node(_data, _data[_nid * 2]);
 			public Node Right => new Node(_data, _data[_nid * 2 + 1]);
 		}
