@@ -17,8 +17,6 @@ namespace CoalescedConvert
 		{
 			_fs = stream ?? throw new ArgumentNullException(nameof(stream));
 			_format = format;
-
-			if (_format == CoalescedFormat.Unknown) throw new ArgumentOutOfRangeException(nameof(format));
 		}
 
 		public long ValuePosition => _valuePos;
@@ -27,6 +25,11 @@ namespace CoalescedConvert
 		{
 			_fs?.Dispose();
 			_fs = null;
+		}
+
+		public void Flush()
+		{
+			_fs.Flush();
 		}
 
 		public int ReadInt()
@@ -129,12 +132,19 @@ namespace CoalescedConvert
 
 		public string ReadString()
 		{
-			if (_format == CoalescedFormat.MassEffect12LE)
+			if (_format == CoalescedFormat.MassEffect12LE || _format == CoalescedFormat.MassEffect2)
 			{
 				var pos = _fs.Position;
 				var len = ReadInt();
-				if (len > 0) throw new CoalescedReadException($"String prefix [{len}] is greater than zero at position 0x{pos:X8}");
-				len = -len;
+				if (_format == CoalescedFormat.MassEffect12LE)
+				{
+					if (len > 0) throw new CoalescedReadException($"String prefix [{len}] is greater than zero at position 0x{pos:X8}");
+					len = -len;
+				}
+				else
+				{
+					if (len < 0) throw new CoalescedReadException($"String prefix [{len}] is greater than zero at position 0x{pos:X8}");
+				}
 
 				var sb = new StringBuilder(len);
 				for (int i = 0; i < len; i++)
@@ -147,7 +157,7 @@ namespace CoalescedConvert
 				_valuePos = pos;
 				return sb.ToString().TrimEnd('\0');
 			}
-			else if (_format == CoalescedFormat.MassEffect3LE)
+			else if (_format == CoalescedFormat.MassEffect3)
 			{
 				var pos = _fs.Position;
 				var len = ReadShort();
@@ -177,7 +187,14 @@ namespace CoalescedConvert
 				}
 				else
 				{
-					WriteInt(-(str.Length + 1));
+					if (_format == CoalescedFormat.MassEffect12LE)
+					{
+						WriteInt(-(str.Length + 1));
+					}
+					else
+					{
+						WriteInt(str.Length + 1);
+					}
 					foreach (var ch in str)
 					{
 						WriteByte((byte)(ch & 0xff));
@@ -187,7 +204,7 @@ namespace CoalescedConvert
 					WriteByte(0);
 				}
 			}
-			else if (_format == CoalescedFormat.MassEffect3LE)
+			else if (_format == CoalescedFormat.MassEffect3)
 			{
 #if CC_UTF8
 				var bytes = Encoding.UTF8.GetBytes(str);

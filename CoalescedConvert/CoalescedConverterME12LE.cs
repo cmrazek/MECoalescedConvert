@@ -6,12 +6,21 @@ namespace CoalescedConvert
 {
 	class CoalescedConverterME12LE
 	{
+		private CoalescedFormat _format;
+		private bool _whatIf;
+
+		public CoalescedConverterME12LE(CoalescedFormat format, bool whatIf)
+		{
+			_format = format;
+			_whatIf = whatIf;
+		}
+
 		public void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))
-			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
+			using (var bin = new CoalescedFileStream(fs, _format))
 			using (var iniMS = new MemoryStream())
-			using (var ini = new IniWriter(iniMS))
+			using (var ini = new IniWriter(iniMS, _format))
 			{
 				var fileCount = bin.ReadInt();
 
@@ -44,10 +53,14 @@ namespace CoalescedConvert
 				}
 
 				ini.Flush();
-				var iniContent = new byte[iniMS.Length];
-				iniMS.Seek(0, SeekOrigin.Begin);
-				iniMS.Read(iniContent);
-				File.WriteAllBytes(iniFileName, iniContent);
+
+				if (!_whatIf)
+				{
+					var iniContent = new byte[iniMS.Length];
+					iniMS.Seek(0, SeekOrigin.Begin);
+					iniMS.Read(iniContent);
+					File.WriteAllBytes(iniFileName, iniContent);
+				}
 			}
 		}
 
@@ -92,8 +105,8 @@ namespace CoalescedConvert
 				}
 			}
 
-			using (var fs = new FileStream(binFileName, FileMode.Create))
-			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
+			using (var ms = new MemoryStream())
+			using (var bin = new CoalescedFileStream(ms, _format))
 			{
 				bin.WriteInt(doc.files.Count);
 				foreach (var file in doc.files)
@@ -110,6 +123,16 @@ namespace CoalescedConvert
 							bin.WriteString(field.value);
 						}
 					}
+				}
+
+				bin.Flush();
+
+				if (!_whatIf)
+				{
+					var content = new byte[ms.Length];
+					ms.Seek(0, SeekOrigin.Begin);
+					ms.Read(content);
+					File.WriteAllBytes(binFileName, content);
 				}
 			}
 		}

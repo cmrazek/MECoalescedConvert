@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
@@ -12,9 +10,10 @@ namespace CoalescedConvert
 		private StreamWriter _writer;
 		private bool _fieldsWritten;
 
-		public IniWriter(Stream stream)
+		public IniWriter(Stream stream, CoalescedFormat format)
 		{
 			_writer = new StreamWriter(stream ?? throw new ArgumentNullException(nameof(stream)));
+			_writer.WriteLine(string.Concat(CoalescedFormatDetector.IniFirstLine, " ", format.ToString()));
 		}
 
 		public void Dispose()

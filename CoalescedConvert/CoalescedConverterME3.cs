@@ -7,20 +7,26 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	class CoalescedConverterME3LE
+	class CoalescedConverterME3
 	{
 		private CoalescedFileStream _bin;
 		private StringTable _strings;
+		private bool _whatIf;
 
 		private ME3Doc _doc;
 		private uint _compressedDataLength;
 
 		private const uint Type_String = 4;
 
+		public CoalescedConverterME3(bool whatIf)
+		{
+			_whatIf = whatIf;
+		}
+
 		public void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))
-			using (_bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect3LE))
+			using (_bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect3))
 			{
 				ReadHeader();
 				ReadStringTable();
@@ -65,9 +71,12 @@ namespace CoalescedConvert
 			WriteCompressedData(compressor, buf);
 			Log.Debug("Compressed data section end: 0x{0:X8}", buf.Length);
 
-			using (var fs = new FileStream(binFileName, FileMode.Create))
+			if (!_whatIf)
 			{
-				buf.WriteToStream(fs);
+				using (var fs = new FileStream(binFileName, FileMode.Create))
+				{
+					buf.WriteToStream(fs);
+				}
 			}
 		}
 
@@ -390,7 +399,7 @@ namespace CoalescedConvert
 		private void WriteIni(string fileName)
 		{
 			using (var ms = new MemoryStream())
-			using (var ini = new IniWriter(ms))
+			using (var ini = new IniWriter(ms, CoalescedFormat.MassEffect3))
 			{
 				foreach (var file in _doc.Files)
 				{
@@ -416,10 +425,14 @@ namespace CoalescedConvert
 				}
 
 				ini.Flush();
-				var iniContent = new byte[ms.Length];
-				ms.Seek(0, SeekOrigin.Begin);
-				ms.Read(iniContent);
-				File.WriteAllBytes(fileName, iniContent);
+
+				if (!_whatIf)
+				{
+					var iniContent = new byte[ms.Length];
+					ms.Seek(0, SeekOrigin.Begin);
+					ms.Read(iniContent);
+					File.WriteAllBytes(fileName, iniContent);
+				}
 			}
 		}
 

@@ -16,6 +16,7 @@ namespace CoalescedConvert
 		{
 			if (_verbose)
 			{
+				Console.ForegroundColor = ConsoleColor.Cyan;
 				Console.WriteLine(message);
 			}
 		}
@@ -24,7 +25,7 @@ namespace CoalescedConvert
 		{
 			if (_verbose)
 			{
-				Console.WriteLine(string.Format(format, args));
+				Debug(string.Format(format, args));
 			}
 		}
 
@@ -32,8 +33,43 @@ namespace CoalescedConvert
 		{
 			if (_verbose)
 			{
-				Console.WriteLine(callback());
+				Debug(callback());
 			}
+		}
+
+		public static void Info(string message)
+		{
+			Console.ForegroundColor = ConsoleColor.Gray;
+			Console.WriteLine(message);
+		}
+
+		public static void Heading(string message)
+		{
+			Console.ForegroundColor = ConsoleColor.White;
+			Console.WriteLine(message);
+		}
+
+		public static void Success(string message)
+		{
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.WriteLine(message);
+		}
+
+		public static void Warning(string message)
+		{
+			Console.ForegroundColor = ConsoleColor.Yellow;
+			Console.WriteLine(message);
+		}
+
+		public static void Error(Exception ex)
+		{
+			Console.ForegroundColor = ConsoleColor.Red;
+			Console.WriteLine(ex.ToString());
+		}
+
+		public static void NewLine()
+		{
+			Console.WriteLine();
 		}
 	}
 }
