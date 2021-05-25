@@ -13,9 +13,7 @@ namespace CoalescedConvert
 		private List<string> _strings;
 
 		private ME3Doc _doc;
-		private int[] _huffmanNodes;
 		private uint _compressedDataLength;
-		private byte[] _compressedData;
 
 		private const uint Type_String = 4;
 
@@ -26,9 +24,9 @@ namespace CoalescedConvert
 			{
 				ReadHeader();
 				ReadStringTable();
-				ReadHuffmanNodes();
+				var huffmanNodes = ReadHuffmanNodes();
 				ReadTree();
-				ReadCompressedData();
+				ReadCompressedData(huffmanNodes);
 			}
 
 			WriteIni(iniFileName);
@@ -84,7 +82,7 @@ namespace CoalescedConvert
 			var maxFieldNameLength = _bin.ReadInt();
 			var maxFieldValueLength = _bin.ReadInt();
 			var stringSectionLength = _bin.ReadInt();
-			var huffmanNodesSectionLength = _bin.ReadInt();
+			var huffmanNodesLength = _bin.ReadInt();
 			var treeSectionLength = _bin.ReadInt();
 			_compressedDataLength = _bin.ReadUInt();
 		}
@@ -196,16 +194,17 @@ namespace CoalescedConvert
 			return buf;
 		}
 
-		private void ReadHuffmanNodes()
+		private int[] ReadHuffmanNodes()
 		{
 			Log.Debug("Huffman nodes section start: 0x{0:X8}", _bin.Position);
 
 			var numHuffmanNodes = _bin.ReadUShort();
 
-			_huffmanNodes = new int[numHuffmanNodes * 2];
-			for (int i = 0, ii = _huffmanNodes.Length; i < ii; i++) _huffmanNodes[i] = _bin.ReadInt();
+			var huffmanNodes = new int[numHuffmanNodes * 2];
+			for (int i = 0, ii = huffmanNodes.Length; i < ii; i++) huffmanNodes[i] = _bin.ReadInt();
 
 			Log.Debug("Huffman nodes section end: 0x{0:X8}", _bin.Position);
+			return huffmanNodes;
 		}
 
 		private void WriteHuffmanNodes(HuffmanCompressor compressor, BinaryBuffer buf)
@@ -344,15 +343,15 @@ namespace CoalescedConvert
 			return treeBuf;
 		}
 
-		private void ReadCompressedData()
+		private void ReadCompressedData(int[] huffmanNodes)
 		{
 			Log.Debug("Compressed data section start: 0x{0:X8}", _bin.Position);
 
 			var unk = _bin.ReadUInt();
-			_compressedData = _bin.ReadBytes((int)_compressedDataLength);
+			var compressedData = _bin.ReadBytes((int)_compressedDataLength);
 
 			var values = new List<string>();
-			var decomp = new HuffmanDecompressor(_huffmanNodes);
+			var decomp = new HuffmanDecompressor(huffmanNodes, compressedData);
 
 			foreach (var file in _doc.Files)
 			{
@@ -362,7 +361,7 @@ namespace CoalescedConvert
 					{
 						foreach (var offset in field.Offsets)
 						{
-							var str = decomp.Decompress(_compressedData, (int)(offset & 0xFFFFFFF));
+							var str = decomp.GetString((int)(offset & 0xFFFFFFF));
 							var type = offset >> 28;
 							if (type != Type_String) throw new UnsupportedValueType(type);
 							field.Values.Add(str);

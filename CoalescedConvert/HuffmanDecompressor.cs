@@ -1,60 +1,54 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-
-// https://www.programmingalgorithms.com/algorithm/huffman-decompress/
 
 namespace CoalescedConvert
 {
 	class HuffmanDecompressor
 	{
-		private int[] _data;
+		private int[] _nodes;
+		private byte[] _compressedData;
 
-		public HuffmanDecompressor(int[] data)
+		public HuffmanDecompressor(int[] nodes, byte[] compressedData)
 		{
-			_data = data ?? throw new ArgumentNullException(nameof(data));
+			_nodes = nodes ?? throw new ArgumentNullException(nameof(nodes));
+			_compressedData = compressedData ?? throw new ArgumentNullException(nameof(compressedData));
 		}
 
-		public string Decompress(byte[] cmpData, int offset)
+		public string GetString(int position)
 		{
 			var sb = new StringBuilder();
-			var end = cmpData.Length * 8;
-			var pos = offset;
+			var end = _compressedData.Length * 8;
+			var curNode = _nodes.Length - 2;
 
-			while (pos < end)
+			for (var pos = position; pos < end; pos++)
 			{
-				Node node;
-				for (node = RootNode; pos < end && !node.CharValue.HasValue; pos++)
+				var sample = _compressedData[pos / 8] & (1 << (pos % 8));
+				var next = _nodes[curNode + (sample != 0 ? 1 : 0)];
+				if (next < 0)
 				{
-					var sample = cmpData[pos / 8] & (1 << (pos % 8));
-					node = sample != 0 ? node.Right : node.Left;
+					var ch = (char)(-1 - next);
+					if (ch == 0) break;
+					sb.Append(ch);
+					curNode = _nodes.Length - 2;
 				}
-				var ch = node.CharValue ?? (char)0;
-				if (ch == 0) break;
-				sb.Append(ch);
+				else
+				{
+					curNode = next * 2;
+					if (curNode > _nodes.Length) throw new DecompressionException("The decompression nodes are malformed.");
+				}
 			}
 
 			return sb.ToString();
 		}
 
-		private Node RootNode => new Node(_data, _data.Length / 2 - 1);
-
-		private struct Node
+		public static string DumpNodesToText(int[] nodes)
 		{
-			public int[] _data;
-			public int _nid;
-
-			public Node(int[] data, int nid)
+			var sb = new StringBuilder();
+			for (int i = 0, ii = nodes.Length; i < ii; i += 2)
 			{
-				_data = data;
-				_nid = nid;
+				sb.AppendLine($"Node {i / 2} left [{nodes[i]}] right [{nodes[i + 1]}]");
 			}
-
-			public char? CharValue => _nid >= 0 ? null : (char)(-1 - _nid);
-			public Node Left => new Node(_data, _data[_nid * 2]);
-			public Node Right => new Node(_data, _data[_nid * 2 + 1]);
+			return sb.ToString();
 		}
 	}
 }

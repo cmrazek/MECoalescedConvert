@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
@@ -176,10 +173,6 @@ namespace CoalescedConvert
 			}
 
 			_nodes = intArray.ToArray();
-#if DEBUG
-			Debug_NodeTreeToJson(queue[0]);
-			Debug_RawNodes();
-#endif
 		}
 
 		private void FlattenNodes(Node node, List<Node> nodes)
@@ -223,52 +216,6 @@ namespace CoalescedConvert
 			public Node left;
 			public Node right;
 			public ChainCode chainCode;
-		}
-
-		private void Debug_NodeTreeToJson(Node rootNode)
-		{
-			using (var stream = new FileStream("c:\\temp\\nodes.json", FileMode.Create))
-			using (var json = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
-			{
-				Debug_NodeTreeToJson(json, rootNode);
-			}
-		}
-
-		private void Debug_NodeTreeToJson(Utf8JsonWriter json, Node node)
-		{
-			json.WriteStartObject();
-
-			if (node.value.HasValue)
-			{
-				json.WriteString("value", $"{node.value} ({(char)node.value})");
-				json.WriteNumber("weight", node.weight);
-				json.WriteString("chainCode", node.chainCode.ToString());
-			}
-
-			if (node.left != null)
-			{
-				json.WritePropertyName("left");
-				Debug_NodeTreeToJson(json, node.left);
-			}
-
-			if (node.right != null)
-			{
-				json.WritePropertyName("right");
-				Debug_NodeTreeToJson(json, node.right);
-			}
-
-			json.WriteEndObject();
-		}
-
-		private void Debug_RawNodes()
-		{
-			using (var rep = new StreamWriter("c:\\temp\\rawnodes.txt"))
-			{
-				for (int i = 0; i < _nodes.Length; i += 2)
-				{
-					rep.WriteLine($"Node {i / 2} left [{_nodes[i]}] right [{_nodes[i + 1]}]");
-				}
-			}
 		}
 
 		private struct ChainCode

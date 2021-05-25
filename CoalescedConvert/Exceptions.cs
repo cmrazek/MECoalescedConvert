@@ -41,4 +41,9 @@ namespace CoalescedConvert
 	{
 		public UnsupportedValueType(uint type) : base($"A field contains an unsupported value type of '{type}'.") { }
 	}
+
+	class DecompressionException : Exception
+	{
+		public DecompressionException(string message) : base(message) { }
+	}
 }
