@@ -10,7 +10,7 @@ namespace CoalescedConvert
 	class CoalescedConverterME3LE
 	{
 		private CoalescedFileStream _bin;
-		private List<string> _strings;
+		private StringTable _strings;
 
 		private ME3Doc _doc;
 		private uint _compressedDataLength;
@@ -37,7 +37,7 @@ namespace CoalescedConvert
 			var doc = ReadIniToDocument(iniFileName);
 			var compressor = new HuffmanCompressor();
 
-			_strings = new List<string>();
+			_strings = new StringTable(1024);
 			_strings.Add(string.Empty);
 
 			// Create the tree buffer
@@ -138,7 +138,7 @@ namespace CoalescedConvert
 			Log.Debug("String data: 0x{0:X8}", _bin.Position);
 			_bin.Read(stringBuf);
 
-			_strings = new List<string>((int)numStrings);
+			_strings = new StringTable((int)numStrings);
 			var sb = new StringBuilder();
 
 			for (int i = 0; i < numStrings; i++)
@@ -174,7 +174,7 @@ namespace CoalescedConvert
 			var strBuf = new BinaryBuffer();
 
 			var stringOffset = _strings.Count * 8;
-			foreach (var str in _strings)
+			foreach (var str in _strings.Strings)
 			{
 				indexBuf.WriteUInt(Crc32.Hash(str));
 				indexBuf.WriteInt(stringOffset);
@@ -226,7 +226,7 @@ namespace CoalescedConvert
 			for (int fileIndex = 0; fileIndex < numFiles; fileIndex++)
 			{
 				var fileNameId = _bin.ReadUShort();
-				var fileName = _strings[fileNameId];
+				var fileName = _strings.GetString(fileNameId);
 				_bin.ReadUInt();
 				_doc.Files.Add(new ME3File(fileName));
 			}
@@ -241,7 +241,7 @@ namespace CoalescedConvert
 
 				for (int sectionIndex = 0; sectionIndex < numSections; sectionIndex++)
 				{
-					var sectionName = _strings[_bin.ReadUShort()];
+					var sectionName = _strings.GetString(_bin.ReadUShort());
 					_bin.ReadUInt();
 					file.Sections.Add(new ME3Section(sectionName));
 				}
@@ -257,7 +257,7 @@ namespace CoalescedConvert
 					for (int fieldIndex = 0; fieldIndex < numFields; fieldIndex++)
 					{
 						var fieldNameId = _bin.ReadUShort();
-						var fieldName = _strings[fieldNameId];
+						var fieldName = _strings.GetString(fieldNameId);
 						_bin.ReadUInt();
 						section.Fields.Add(new ME3Field(fieldName));
 					}
@@ -282,10 +282,16 @@ namespace CoalescedConvert
 		{
 			foreach (var file in doc.Files)
 			{
+				_strings.Add(file.FileName);
+
 				foreach (var section in file.Sections)
 				{
+					_strings.Add(section.Name);
+
 					foreach (var field in section.Fields)
 					{
+						_strings.Add(field.Name);
+
 						foreach (var value in field.Values)
 						{
 							compressor.Add(value);
@@ -294,6 +300,7 @@ namespace CoalescedConvert
 				}
 			}
 
+			_strings.Sort();
 			compressor.Compress();
 
 			var treeBuf = new BinaryBuffer();
@@ -306,7 +313,7 @@ namespace CoalescedConvert
 
 			foreach (var file in doc.Files)
 			{
-				treeBuf.WriteUShort(StoreString(file.FileName));
+				treeBuf.WriteUShort(_strings.GetId(file.FileName));
 				treeBuf.WriteInt(doc.Files.Count * 6 + 2 + fileBuf.Length);
 
 				fileBuf.WriteUShort((ushort)file.Sections.Count);
@@ -314,7 +321,7 @@ namespace CoalescedConvert
 
 				foreach (var section in file.Sections)
 				{
-					fileBuf.WriteUShort(StoreString(section.Name));
+					fileBuf.WriteUShort(_strings.GetId(section.Name));
 					fileBuf.WriteInt(file.Sections.Count * 6 + 2 + sectionBuf.Length);
 
 					sectionBuf.WriteUShort((ushort)section.Fields.Count);
@@ -322,7 +329,7 @@ namespace CoalescedConvert
 
 					foreach (var field in section.Fields)
 					{
-						sectionBuf.WriteUShort(StoreString(field.Name));
+						sectionBuf.WriteUShort(_strings.GetId(field.Name));
 						sectionBuf.WriteInt(section.Fields.Count * 6 + 2 + fieldBuf.Length);
 
 						fieldBuf.WriteUShort((ushort)field.Values.Count);
@@ -459,18 +466,6 @@ namespace CoalescedConvert
 			}
 
 			return doc;
-		}
-
-		private ushort StoreString(string str)
-		{
-			var id = _strings.IndexOf(str);
-			if (id < 0)
-			{
-				id = _strings.Count;
-				_strings.Add(str);
-			}
-			if (id > ushort.MaxValue) throw new TooManyStringsException();
-			return (ushort)id;
 		}
 	}
 

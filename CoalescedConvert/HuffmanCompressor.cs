@@ -7,7 +7,7 @@ namespace CoalescedConvert
 {
 	class HuffmanCompressor
 	{
-		private Dictionary<string, int> _strings = new Dictionary<string, int>();
+		private SortedDictionary<string, int> _strings = new SortedDictionary<string, int>();
 		private int[] _nodes;
 		private Dictionary<char, ChainCode> _chainCodes;
 		private byte[] _compressedData;
