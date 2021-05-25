@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Text;
 
 namespace CoalescedConvert
 {
@@ -18,6 +19,8 @@ namespace CoalescedConvert
 			_defaultConsoleColor = Console.ForegroundColor;
 			try
 			{
+				Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
 				Environment.ExitCode = new Program().Run(args);
 			}
 			catch (Exception ex)
@@ -118,6 +121,22 @@ namespace CoalescedConvert
 			if (!detectResult.HasValue) throw new UnknownCoalescedFormatException();
 			var fmt = detectResult.Value;
 
+			CoalescedConverter converter;
+			switch (fmt.Format)
+			{
+				case CoalescedFormat.MassEffect2:
+					converter = new ME2Converter(_whatIf);
+					break;
+				case CoalescedFormat.MassEffect3:
+					converter = new ME3Converter(_whatIf);
+					break;
+				case CoalescedFormat.MassEffect12LE:
+					converter = new ME12LEConverter(_whatIf);
+					break;
+				default:
+					throw new UnknownCoalescedFormatException();
+			}
+
 			if (fmt.IsExport)
 			{
 				if (string.IsNullOrEmpty(_outputFileName))
@@ -158,24 +177,7 @@ namespace CoalescedConvert
 					}
 				}
 
-				switch (fmt.Format)
-				{
-					case CoalescedFormat.MassEffect2:
-					case CoalescedFormat.MassEffect12LE:
-						{
-							var converter = new CoalescedConverterME12LE(fmt.Format, _whatIf);
-							converter.Encode(_inputFileName, _outputFileName);
-						}
-						break;
-					case CoalescedFormat.MassEffect3:
-						{
-							var converter = new CoalescedConverterME3(_whatIf);
-							converter.Encode(_inputFileName, _outputFileName);
-						}
-						break;
-					default:
-						throw new UnknownCoalescedFormatException();
-				}
+				converter.Encode(_inputFileName, _outputFileName);
 			}
 			else
 			{
@@ -191,24 +193,7 @@ namespace CoalescedConvert
 				Log.Heading($"To INI:");
 				Log.Info(_outputFileName);
 
-				switch (fmt.Format)
-				{
-					case CoalescedFormat.MassEffect2:
-					case CoalescedFormat.MassEffect12LE:
-						{
-							var converter = new CoalescedConverterME12LE(fmt.Format, _whatIf);
-							converter.Decode(_inputFileName, _outputFileName);
-						}
-						break;
-					case CoalescedFormat.MassEffect3:
-						{
-							var converter = new CoalescedConverterME3(_whatIf);
-							converter.Decode(_inputFileName, _outputFileName);
-						}
-						break;
-					default:
-						throw new UnknownCoalescedFormatException();
-				}
+				converter.Decode(_inputFileName, _outputFileName);
 			}
 
 			if (_whatIf) Log.Success("No changes made");

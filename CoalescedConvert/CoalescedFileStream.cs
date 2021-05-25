@@ -32,6 +32,8 @@ namespace CoalescedConvert
 			_fs.Flush();
 		}
 
+		public bool EndOfStream => _fs.Position >= _fs.Length;
+
 		public int ReadInt()
 		{
 			_valuePos = _fs.Position;
@@ -130,21 +132,19 @@ namespace CoalescedConvert
 			_fs.WriteByte(value);
 		}
 
+		public void WriteBytes(byte[] bytes)
+		{
+			_fs.Write(bytes);
+		}
+
 		public string ReadString()
 		{
-			if (_format == CoalescedFormat.MassEffect12LE || _format == CoalescedFormat.MassEffect2)
+			if (_format == CoalescedFormat.MassEffect12LE)
 			{
 				var pos = _fs.Position;
 				var len = ReadInt();
-				if (_format == CoalescedFormat.MassEffect12LE)
-				{
-					if (len > 0) throw new CoalescedReadException($"String prefix [{len}] is greater than zero at position 0x{pos:X8}");
-					len = -len;
-				}
-				else
-				{
-					if (len < 0) throw new CoalescedReadException($"String prefix [{len}] is greater than zero at position 0x{pos:X8}");
-				}
+				if (len > 0) throw new CoalescedReadException($"String prefix [{len}] is greater than zero at position 0x{pos:X8}");
+				len = -len;
 
 				var sb = new StringBuilder(len);
 				for (int i = 0; i < len; i++)
@@ -155,7 +155,24 @@ namespace CoalescedConvert
 				}
 
 				_valuePos = pos;
-				return sb.ToString().TrimEnd('\0');
+				return sb.ToString();
+			}
+			else if (_format == CoalescedFormat.MassEffect2)
+			{
+				var pos = _fs.Position;
+				var len = ReadInt();
+				if (len < 0) throw new CoalescedReadException($"String prefix [{len}] is less than zero at position 0x{pos:X8}");
+
+				var sb = new StringBuilder(len);
+				for (int i = 0; i < len; i++)
+				{
+					char ch = (char)ReadByte();
+					if (ch == 0) break;
+					sb.Append(ch);
+				}
+
+				_valuePos = pos;
+				return sb.ToString();
 			}
 			else if (_format == CoalescedFormat.MassEffect3)
 			{
@@ -187,20 +204,29 @@ namespace CoalescedConvert
 				}
 				else
 				{
-					if (_format == CoalescedFormat.MassEffect12LE)
-					{
-						WriteInt(-(str.Length + 1));
-					}
-					else
-					{
-						WriteInt(str.Length + 1);
-					}
+					WriteInt(-(str.Length + 1));
 					foreach (var ch in str)
 					{
 						WriteByte((byte)(ch & 0xff));
 						WriteByte((byte)((ch >> 8) & 0xff));
 					}
 					WriteByte(0);
+					WriteByte(0);
+				}
+			}
+			else if (_format == CoalescedFormat.MassEffect2)
+			{
+				if (str.Length == 0)
+				{
+					WriteInt(0);
+				}
+				else
+				{
+					WriteInt(str.Length + 1);
+					foreach (var ch in str)
+					{
+						WriteByte((byte)ch);
+					}
 					WriteByte(0);
 				}
 			}

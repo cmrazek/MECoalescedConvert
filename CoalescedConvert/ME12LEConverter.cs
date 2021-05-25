@@ -4,30 +4,29 @@ using System.IO;
 
 namespace CoalescedConvert
 {
-	class CoalescedConverterME12LE
+	class ME12LEConverter : CoalescedConverter
 	{
-		private CoalescedFormat _format;
-		private bool _whatIf;
-
-		public CoalescedConverterME12LE(CoalescedFormat format, bool whatIf)
+		public ME12LEConverter(bool whatIf)
+			: base(whatIf)
 		{
-			_format = format;
-			_whatIf = whatIf;
 		}
 
-		public void Decode(string binFileName, string iniFileName)
+		public override void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))
-			using (var bin = new CoalescedFileStream(fs, _format))
+			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
 			using (var iniMS = new MemoryStream())
-			using (var ini = new IniWriter(iniMS, _format))
+			using (var ini = new IniWriter(iniMS, CoalescedFormat.MassEffect12LE))
 			{
 				var fileCount = bin.ReadInt();
+				Log.Debug("Num files: {0}", fileCount);
 
 				for (int fileIndex = 0; fileIndex < fileCount; fileIndex++)
 				{
 					var fileName = bin.ReadString();
+					Log.Debug("File name: {0}", fileName);
 					var sectionCount = bin.ReadInt();
+					Log.Debug("Section count: {0}", sectionCount);
 
 					if (sectionCount > 0)
 					{
@@ -54,7 +53,7 @@ namespace CoalescedConvert
 
 				ini.Flush();
 
-				if (!_whatIf)
+				if (!WhatIf)
 				{
 					var iniContent = new byte[iniMS.Length];
 					iniMS.Seek(0, SeekOrigin.Begin);
@@ -64,14 +63,14 @@ namespace CoalescedConvert
 			}
 		}
 
-		public void Encode(string iniFileName, string binFileName)
+		public override void Encode(string iniFileName, string binFileName)
 		{
 			var doc = new EncDoc();
 			var currentSection = null as EncSection;
 			var currentFile = null as EncFile;
 
 			using (var fs = new FileStream(iniFileName, FileMode.Open))
-			using (var ini = new IniReader(fs))
+			using (var ini = new IniReader(fs, hasEmbeddedFileNames: true))
 			{
 				while (!ini.EndOfStream)
 				{
@@ -106,7 +105,7 @@ namespace CoalescedConvert
 			}
 
 			using (var ms = new MemoryStream())
-			using (var bin = new CoalescedFileStream(ms, _format))
+			using (var bin = new CoalescedFileStream(ms, CoalescedFormat.MassEffect12LE))
 			{
 				bin.WriteInt(doc.files.Count);
 				foreach (var file in doc.files)
@@ -127,7 +126,7 @@ namespace CoalescedConvert
 
 				bin.Flush();
 
-				if (!_whatIf)
+				if (!WhatIf)
 				{
 					var content = new byte[ms.Length];
 					ms.Seek(0, SeekOrigin.Begin);

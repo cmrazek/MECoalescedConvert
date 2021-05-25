@@ -9,11 +9,22 @@ namespace CoalescedConvert
 	{
 		private StreamWriter _writer;
 		private bool _fieldsWritten;
+		private bool _addBlankLinesBetweenSections;
+		private bool _escapeStrings;
 
-		public IniWriter(Stream stream, CoalescedFormat format)
+		public const char EscapeChar = '^';
+
+		public IniWriter(Stream stream, CoalescedFormat? format, bool leaveOpen = false, string lineEndSequence = null, bool addBlankLinesBetweenSections = true, bool escapeStrings = true)
 		{
-			_writer = new StreamWriter(stream ?? throw new ArgumentNullException(nameof(stream)));
-			_writer.WriteLine(string.Concat(CoalescedFormatDetector.IniFirstLine, " ", format.ToString()));
+			_writer = new StreamWriter(stream ?? throw new ArgumentNullException(nameof(stream)), leaveOpen: leaveOpen);
+			if (lineEndSequence != null) _writer.NewLine = lineEndSequence;
+			_addBlankLinesBetweenSections = addBlankLinesBetweenSections;
+			_escapeStrings = escapeStrings;
+
+			if (format.HasValue)
+			{
+				_writer.WriteLine(string.Concat(CoalescedFormatDetector.IniFirstLine, " ", format.ToString()));
+			}
 		}
 
 		public void Dispose()
@@ -31,22 +42,40 @@ namespace CoalescedConvert
 		{
 			if (_fieldsWritten)
 			{
-				_writer.WriteLine();
+				if (_addBlankLinesBetweenSections) _writer.WriteLine();
 				_fieldsWritten = false;
 			}
 
 			_writer.Write('[');
-			_writer.Write(IniEncode(fileName, escapePipe: true));
+			if (_escapeStrings) _writer.Write(IniEncode(fileName, escapePipe: true));
+			else _writer.Write(fileName);
 			_writer.Write('|');
-			_writer.Write(IniEncode(sectionName));
+			if (_escapeStrings) _writer.Write(IniEncode(sectionName));
+			else _writer.Write(sectionName);
+			_writer.WriteLine(']');
+		}
+
+		public void WriteSection(string sectionName)
+		{
+			if (_fieldsWritten)
+			{
+				if (_addBlankLinesBetweenSections) _writer.WriteLine();
+				_fieldsWritten = false;
+			}
+
+			_writer.Write('[');
+			if (_escapeStrings) _writer.Write(IniEncode(sectionName));
+			else _writer.Write(sectionName);
 			_writer.WriteLine(']');
 		}
 
 		public void WriteField(string name, string value)
 		{
-			_writer.Write(IniEncode(name, escapeEquals: true));
+			if (_escapeStrings) _writer.Write(IniEncode(name, escapeEquals: true));
+			else _writer.Write(name);
 			_writer.Write('=');
-			_writer.WriteLine(IniEncode(value));
+			if (_escapeStrings) _writer.WriteLine(IniEncode(value));
+			else _writer.WriteLine(value);
 
 			_fieldsWritten = true;
 		}
@@ -69,21 +98,32 @@ namespace CoalescedConvert
 			{
 				switch (ch)
 				{
-					case '\\':
-						sb.Append("\\\\");
+					case EscapeChar:
+						sb.Append(EscapeChar);
+						sb.Append(EscapeChar);
 						break;
 					case '\r':
-						sb.Append("\\r");
+						sb.Append(EscapeChar);
+						sb.Append('r');
 						break;
 					case '\n':
-						sb.Append("\\n");
+						sb.Append(EscapeChar);
+						sb.Append('n');
 						break;
 					case '|':
-						if (escapePipe) sb.Append("\\p");
+						if (escapePipe)
+						{
+							sb.Append(EscapeChar);
+							sb.Append('p');
+						}
 						else sb.Append(ch);
 						break;
 					case '=':
-						if (escapeEquals) sb.Append("\\e");
+						if (escapeEquals)
+						{
+							sb.Append(EscapeChar);
+							sb.Append('e');
+						}
 						else sb.Append(ch);
 						break;
 					default:

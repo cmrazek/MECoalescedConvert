@@ -7,23 +7,22 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	class CoalescedConverterME3
+	class ME3Converter : CoalescedConverter
 	{
 		private CoalescedFileStream _bin;
 		private StringTable _strings;
-		private bool _whatIf;
 
 		private ME3Doc _doc;
 		private uint _compressedDataLength;
 
 		private const uint Type_String = 4;
 
-		public CoalescedConverterME3(bool whatIf)
+		public ME3Converter(bool whatIf)
+			: base(whatIf)
 		{
-			_whatIf = whatIf;
 		}
 
-		public void Decode(string binFileName, string iniFileName)
+		public override void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))
 			using (_bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect3))
@@ -38,7 +37,7 @@ namespace CoalescedConvert
 			WriteIni(iniFileName);
 		}
 
-		public void Encode(string iniFileName, string binFileName)
+		public override void Encode(string iniFileName, string binFileName)
 		{
 			var doc = ReadIniToDocument(iniFileName);
 			var compressor = new HuffmanCompressor();
@@ -71,7 +70,7 @@ namespace CoalescedConvert
 			WriteCompressedData(compressor, buf);
 			Log.Debug("Compressed data section end: 0x{0:X8}", buf.Length);
 
-			if (!_whatIf)
+			if (!WhatIf)
 			{
 				using (var fs = new FileStream(binFileName, FileMode.Create))
 				{
@@ -426,7 +425,7 @@ namespace CoalescedConvert
 
 				ini.Flush();
 
-				if (!_whatIf)
+				if (!WhatIf)
 				{
 					var iniContent = new byte[ms.Length];
 					ms.Seek(0, SeekOrigin.Begin);
@@ -441,7 +440,7 @@ namespace CoalescedConvert
 			var doc = new ME3Doc();
 
 			using (var fs = new FileStream(fileName, FileMode.Open))
-			using (var ini = new IniReader(fs))
+			using (var ini = new IniReader(fs, hasEmbeddedFileNames: true))
 			{
 				while (!ini.EndOfStream)
 				{
@@ -480,50 +479,50 @@ namespace CoalescedConvert
 
 			return doc;
 		}
-	}
 
-	class ME3Doc
-	{
-		public List<ME3File> Files { get; private set; } = new List<ME3File>();
-	}
-
-	class ME3File
-	{
-		public string FileName;
-		public List<ME3Section> Sections { get; private set; } = new List<ME3Section>();
-
-		public ME3File(string fileName)
+		private class ME3Doc
 		{
-			FileName = fileName;
-		}
-	}
-
-	class ME3Section
-	{
-		public string Name;
-		public List<ME3Field> Fields { get; private set; } = new List<ME3Field>();
-
-		public ME3Section(string name)
-		{
-			Name = name;
-		}
-	}
-
-	class ME3Field
-	{
-		public string Name { get; private set; }
-		public List<uint> Offsets { get; private set; } = new List<uint>();
-		public List<string> Values { get; private set; } = new List<string>();
-
-		public ME3Field(string name)
-		{
-			Name = name;
+			public List<ME3File> Files { get; private set; } = new List<ME3File>();
 		}
 
-		public ME3Field(string name, string value)
+		private class ME3File
 		{
-			Name = name;
-			Values.Add(value);
+			public string FileName { get; private set; }
+			public List<ME3Section> Sections { get; private set; } = new List<ME3Section>();
+
+			public ME3File(string fileName)
+			{
+				FileName = fileName;
+			}
+		}
+
+		private class ME3Section
+		{
+			public string Name { get; private set; }
+			public List<ME3Field> Fields { get; private set; } = new List<ME3Field>();
+
+			public ME3Section(string name)
+			{
+				Name = name;
+			}
+		}
+
+		private class ME3Field
+		{
+			public string Name { get; private set; }
+			public List<uint> Offsets { get; private set; } = new List<uint>();
+			public List<string> Values { get; private set; } = new List<string>();
+
+			public ME3Field(string name)
+			{
+				Name = name;
+			}
+
+			public ME3Field(string name, string value)
+			{
+				Name = name;
+				Values.Add(value);
+			}
 		}
 	}
 }

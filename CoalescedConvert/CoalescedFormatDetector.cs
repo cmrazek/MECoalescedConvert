@@ -16,6 +16,7 @@ namespace CoalescedConvert
 
 	class CoalescedFormatDetector
 	{
+		public const int ME2Signature = 0x1e;
 		public const int ME3Signature = 0x666d726d; // Appears as 'mrmf' in the file.
 		public const int ME3Version = 1;
 		public const string IniFirstLine = "; CoalescedConvert Export";
@@ -40,9 +41,18 @@ namespace CoalescedConvert
 				byte[] buf = new byte[12];
 				fs.Read(buf, 0, 12);
 
-				// Easy check for ME3LE
-				if (buf[0] == 'm' && buf[1] == 'r' && buf[2] == 'm' && buf[3] == 'f' &&
-					(buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24)) == ME3Version)
+				// ME2 starts with 0x1e then has the length of the first file name.
+				if (BytesToInt(buf, 0) == ME2Signature && BytesToInt(buf, 4) > 0)
+				{
+					return new FormatDetectionResult
+					{
+						Format = CoalescedFormat.MassEffect2,
+						IsExport = false
+					};
+				}
+
+				// ME3 starts with 'mrmf' then has a version number.
+				if (buf[0] == 'm' && buf[1] == 'r' && buf[2] == 'm' && buf[3] == 'f' && BytesToInt(buf, 4) == ME3Version)
 				{
 					return new FormatDetectionResult
 					{
@@ -51,11 +61,11 @@ namespace CoalescedConvert
 					};
 				}
 
-				// ME2 and ME12LE starts with number of files. Make sure this is in a reasonable range.
+				// ME12LE starts with number of files. Make sure this is in a reasonable range.
 				int num2 = (buf[0]) | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
 				if (num2 > 0 && num2 < 256)
 				{
-					// Next field is the string prefix for the first file name. For ME12LE, this is a negative number.
+					// Next field is the string prefix for the first file name; this is a negative number.
 					int num3 = (buf[4]) | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
 					if (num3 < 0 && num3 > -260)	// 260 = Win32 MAX_PATH
 					{
@@ -97,6 +107,8 @@ namespace CoalescedConvert
 				return null;
 			}
 		}
+
+		public static int BytesToInt(byte[] bytes, int start) => bytes[start] | (bytes[start + 1] << 8) | (bytes[start + 2] << 16) | (bytes[start + 3] << 24);
 
 		public struct FormatDetectionResult
 		{

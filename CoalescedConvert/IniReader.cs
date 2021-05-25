@@ -27,10 +27,14 @@ namespace CoalescedConvert
 	{
 		private StreamReader _rdr;
 		private int _lineNumber;
+		private bool _hasEmbeddedFileNames;
+		private bool _unescapeStrings;
 
-		public IniReader(Stream stream)
+		public IniReader(Stream stream, bool hasEmbeddedFileNames, bool unescapeStrings = true)
 		{
 			_rdr = new StreamReader(stream ?? throw new ArgumentNullException(nameof(stream)));
+			_hasEmbeddedFileNames = hasEmbeddedFileNames;
+			_unescapeStrings = unescapeStrings;
 		}
 
 		public void Dispose()
@@ -59,24 +63,40 @@ namespace CoalescedConvert
 				if ((match = _rxSection.Match(line)).Success)
 				{
 					var sectionName = match.Groups[1].Value;
-					index = sectionName.IndexOf('|');
-					if (index <= 0) throw new IniNoCurrentFileException($"No file name was included in the INI section on line {_lineNumber}.");
-					var fileName = IniDecode(sectionName.Substring(0, index));
-					sectionName = IniDecode(sectionName.Substring(index + 1));
-					return new IniReadResult
+					if (_hasEmbeddedFileNames)
 					{
-						Type = IniReadResultType.Section,
-						Value1 = fileName,
-						Value2 = sectionName,
-						LineNumber = _lineNumber
-					};
+						index = sectionName.IndexOf('|');
+						if (index <= 0) throw new IniNoCurrentFileException($"No file name was included in the INI section on line {_lineNumber}.");
+						var fileName = sectionName.Substring(0, index);
+						if (_unescapeStrings) fileName = IniDecode(fileName);
+						sectionName = sectionName.Substring(index + 1);
+						if (_unescapeStrings) sectionName = IniDecode(sectionName);
+						return new IniReadResult
+						{
+							Type = IniReadResultType.Section,
+							Value1 = fileName,
+							Value2 = sectionName,
+							LineNumber = _lineNumber
+						};
+					}
+					else
+					{
+						return new IniReadResult
+						{
+							Type = IniReadResultType.Section,
+							Value1 = _unescapeStrings ? IniDecode(sectionName) : sectionName,
+							LineNumber = _lineNumber
+						};
+					}
 				}
 
 				index = line.IndexOf('=');
 				if (index <= 0) throw new IniInvalidKeyNameException($"No field name was included before a '=' on line {_lineNumber}.");
 
-				var fieldName = IniDecode(line.Substring(0, index));
-				var fieldValue = IniDecode(line.Substring(index + 1));
+				var fieldName = line.Substring(0, index);
+				if (_unescapeStrings) fieldName = IniDecode(fieldName);
+				var fieldValue = line.Substring(index + 1);
+				if (_unescapeStrings) fieldValue = IniDecode(fieldValue);
 				return new IniReadResult
 				{
 					Type = IniReadResultType.Field,
@@ -102,12 +122,12 @@ namespace CoalescedConvert
 			for (int pos = 0, len = str.Length; pos < len; pos++)
 			{
 				var ch = str[pos];
-				if (ch == '\\' && pos + 1 < len)
+				if (ch == IniWriter.EscapeChar && pos + 1 < len)
 				{
 					switch (str[pos + 1])
 					{
-						case '\\':
-							sb.Append('\\');
+						case IniWriter.EscapeChar:
+							sb.Append(IniWriter.EscapeChar);
 							pos++;
 							break;
 						case 'r':
@@ -127,7 +147,7 @@ namespace CoalescedConvert
 							pos++;
 							break;
 						default:
-							sb.Append('\\');
+							sb.Append(IniWriter.EscapeChar);
 							break;
 					}
 				}
