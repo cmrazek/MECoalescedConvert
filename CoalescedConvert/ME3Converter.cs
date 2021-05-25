@@ -17,11 +17,6 @@ namespace CoalescedConvert
 
 		private const uint Type_String = 4;
 
-		public ME3Converter(bool whatIf)
-			: base(whatIf)
-		{
-		}
-
 		public override void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))

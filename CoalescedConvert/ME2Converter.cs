@@ -9,11 +9,6 @@ namespace CoalescedConvert
 	{
 		private Encoding _encoding = Encoding.GetEncoding(1252);
 
-		public ME2Converter(bool whatIf)
-			: base(whatIf)
-		{
-		}
-
 		public override void Decode(string binFileName, string iniFileName)
 		{
 			var doc = new ME2Doc();

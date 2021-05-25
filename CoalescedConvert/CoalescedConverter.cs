@@ -6,18 +6,26 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	abstract class CoalescedConverter
+	public abstract class CoalescedConverter
 	{
 		public abstract void Decode(string binFileName, string iniFileName);
 		public abstract void Encode(string iniFileName, string binFileName);
 
-		private bool _whatIf;
-
-		public CoalescedConverter(bool whatIf)
+		public static CoalescedConverter Create(CoalescedFormat format)
 		{
-			_whatIf = whatIf;
+			switch (format)
+			{
+				case CoalescedFormat.MassEffect2:
+					return new ME2Converter();
+				case CoalescedFormat.MassEffect3:
+					return new ME3Converter();
+				case CoalescedFormat.MassEffect12LE:
+					return new ME12LEConverter();
+				default:
+					throw new UnknownCoalescedFormatException();
+			}
 		}
 
-		public bool WhatIf => _whatIf;
+		public bool WhatIf { get; set; }
 	}
 }

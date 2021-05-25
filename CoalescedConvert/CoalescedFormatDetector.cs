@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	enum CoalescedFormat
+	public enum CoalescedFormat
 	{
 		MassEffect2,
 		MassEffect3,
 		MassEffect12LE
 	}
 
-	class CoalescedFormatDetector
+	public class CoalescedFormatDetector
 	{
 		public const int ME2Signature = 0x1e;
 		public const int ME3Signature = 0x666d726d; // Appears as 'mrmf' in the file.
@@ -32,9 +32,9 @@ namespace CoalescedConvert
 			}
 		}
 
-		public static FormatDetectionResult? Detect(string fileName)
+		public static FormatDetectionResult Detect(string fileName)
 		{
-			if (!File.Exists(fileName)) return null;
+			if (!File.Exists(fileName)) throw new FileNotFoundException();
 
 			using (var fs = new FileStream(fileName, FileMode.Open))
 			{
@@ -104,7 +104,7 @@ namespace CoalescedConvert
 					}
 				}
 
-				return null;
+				throw new UnknownCoalescedFormatException();
 			}
 		}
 

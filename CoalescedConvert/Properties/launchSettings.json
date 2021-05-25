@@ -1,8 +1,7 @@
 {
   "profiles": {
     "CoalescedConvert": {
-      "commandName": "Project",
-      "commandLineArgs": "\"C:\\Dev\\CoalescedConvert\\Samples\\ME2LE\\ME2LE-factory.bin\" --verbose"
+      "commandName": "Project"
     }
   }
 }

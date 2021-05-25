@@ -6,11 +6,6 @@ namespace CoalescedConvert
 {
 	class ME12LEConverter : CoalescedConverter
 	{
-		public ME12LEConverter(bool whatIf)
-			: base(whatIf)
-		{
-		}
-
 		public override void Decode(string binFileName, string iniFileName)
 		{
 			using (var fs = new FileStream(binFileName, FileMode.Open))

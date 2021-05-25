@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	static class Log
+	public static class Log
 	{
 		private static bool _verbose = false;
 

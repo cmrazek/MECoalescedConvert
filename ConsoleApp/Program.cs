@@ -46,7 +46,7 @@ namespace CoalescedConvert
 			Log.Info("  Converts a Mass Effect Coalesced file into an INI file, or vice-versa.");
 			Log.NewLine();
 			Log.Heading("Usage:");
-			Log.Info("> CoelescedConvert.exe <input_file_name> [switches]");
+			Log.Info("> coalc.exe <input_file_name> [switches]");
 			Log.NewLine();
 			Log.Heading("Switches");
 			Log.Info("-h, --help             Show this help info.");
@@ -57,13 +57,13 @@ namespace CoalescedConvert
 			Log.Heading("Example:");
 			Log.NewLine();
 			Log.Info("Export \"Coalesced_INT.bin\" into an INI file:");
-			Log.Info("> CoalescedConvert \"Coalesced_INT.bin\"");
+			Log.Info("> coalc.exe \"Coalesced_INT.bin\"");
 			Log.Info("This generates a new file \"Coalesced-export.ini\" in the same folder.");
 			Log.NewLine();
 			Log.Info("(make your changes to the INI file)");
 			Log.NewLine();
 			Log.Info("Import \"Coalesced_INT-export.ini\" back into \"Coalesced_INT.bin\":");
-			Log.Info("> CoalescedConvert \"Coalesced_INT.bin\"");
+			Log.Info("> coalc.exe \"Coalesced_INT.bin\"");
 			Log.Info("This creates a backup of \"Coalesced_INT.bin\" and overwrites the file with the");
 			Log.Info("changes you've made to \"Coalesced_INT-export.ini\".");
 			Log.NewLine();
@@ -117,25 +117,8 @@ namespace CoalescedConvert
 			Log.Verbose = _verbose;
 
 			if (!File.Exists(_inputFileName)) throw new FileNotFoundException($"The file '{_inputFileName}' could not be found.");
-			var detectResult = CoalescedFormatDetector.Detect(_inputFileName);
-			if (!detectResult.HasValue) throw new UnknownCoalescedFormatException();
-			var fmt = detectResult.Value;
-
-			CoalescedConverter converter;
-			switch (fmt.Format)
-			{
-				case CoalescedFormat.MassEffect2:
-					converter = new ME2Converter(_whatIf);
-					break;
-				case CoalescedFormat.MassEffect3:
-					converter = new ME3Converter(_whatIf);
-					break;
-				case CoalescedFormat.MassEffect12LE:
-					converter = new ME12LEConverter(_whatIf);
-					break;
-				default:
-					throw new UnknownCoalescedFormatException();
-			}
+			var fmt = CoalescedFormatDetector.Detect(_inputFileName);
+			var converter = CoalescedConverter.Create(fmt.Format);
 
 			if (fmt.IsExport)
 			{
