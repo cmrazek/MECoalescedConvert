@@ -82,7 +82,7 @@ namespace CoalescedConvert
 			if (version != 1) throw new CoalescedReadException("File version is not 1. This may be the incorrect format.");
 
 			var maxFieldNameLength = _bin.ReadInt();
-			var num3 = _bin.ReadInt();
+			var maxFieldValueLength = _bin.ReadInt();
 			var stringSectionLength = _bin.ReadInt();
 			var huffmanNodesSectionLength = _bin.ReadInt();
 			var treeSectionLength = _bin.ReadInt();
@@ -113,7 +113,7 @@ namespace CoalescedConvert
 			buf.WriteInt(maxFieldNameLength);
 			buf.WriteInt(maxFieldValueLength);
 			buf.WriteInt(stringTableBuf.Length);
-			buf.WriteInt(compressor.NodeData.Length);
+			buf.WriteInt(compressor.NodeData.Length * 4 + 2);
 			buf.WriteInt(treeBuf.Length);
 			buf.WriteInt(compressor.CompressedData.Length);
 		}
@@ -205,7 +205,6 @@ namespace CoalescedConvert
 			_huffmanNodes = new int[numHuffmanNodes * 2];
 			for (int i = 0, ii = _huffmanNodes.Length; i < ii; i++) _huffmanNodes[i] = _bin.ReadInt();
 
-			Log.Debug(() => string.Join(", ", _huffmanNodes));
 			Log.Debug("Huffman nodes section end: 0x{0:X8}", _bin.Position);
 		}
 
@@ -214,8 +213,6 @@ namespace CoalescedConvert
 			var data = compressor.NodeData;
 			buf.WriteUShort((ushort)(data.Length / 2));
 			foreach (var n in data) buf.WriteInt(n);
-
-			Log.Debug(() => string.Join(", ", data));
 		}
 
 		private void ReadTree()

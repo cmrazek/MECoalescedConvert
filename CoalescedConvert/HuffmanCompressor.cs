@@ -52,9 +52,11 @@ namespace CoalescedConvert
 				{
 					if (weights.TryGetValue(ch, out weight)) weights[ch] = weight + 1;
 					else weights[ch] = 0;
+					uncompressedSize++;
 				}
 				if (weights.TryGetValue('\0', out weight)) weights['\0'] = weight + 1;
 				else weights['\0'] = 0;
+				uncompressedSize++;
 #endif
 			}
 
