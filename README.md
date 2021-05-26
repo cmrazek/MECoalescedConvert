@@ -28,6 +28,7 @@ Once you've completed your changes, run __mecoalc.exe__ again, this time passing
 
 ![Encoding Using PowerShell](https://raw.githubusercontent.com/cmrazek/MECoalescedConvert/master/assets/encode-ps.png)
 
-The first time this is done, the app will make a backup of the original file, and will then save your changes to __Coalesced_INT.bin__.
+It will save your changes to __Coalesced_INT.bin__.
+The first time this is done, the app will make a backup of the original file (just in case).
 
 Play the game.
