@@ -4,9 +4,9 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net5.0</TargetFramework>
     <RootNamespace>CoalescedConvert</RootNamespace>
-    <AssemblyName>coalc</AssemblyName>
+    <AssemblyName>mecoalc</AssemblyName>
     <Company>Chris Mrazek</Company>
-    <Product>Coalesced Convert</Product>
+    <Product>Mass Effect Coalesced Convert</Product>
     <Copyright />
   </PropertyGroup>
 
