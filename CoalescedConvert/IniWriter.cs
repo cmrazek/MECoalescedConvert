@@ -14,9 +14,12 @@ namespace CoalescedConvert
 
 		public const char EscapeChar = '^';
 
-		public IniWriter(Stream stream, CoalFormat? format, bool leaveOpen = false, string lineEndSequence = null, bool addBlankLinesBetweenSections = true, bool escapeStrings = true)
+		public IniWriter(Stream stream, CoalFormat? format, Encoding encoding = null, bool leaveOpen = false, string lineEndSequence = null, bool addBlankLinesBetweenSections = true, bool escapeStrings = true)
 		{
-			_writer = new StreamWriter(stream ?? throw new ArgumentNullException(nameof(stream)), leaveOpen: leaveOpen);
+			if (stream == null) throw new ArgumentNullException(nameof(stream));
+
+			_writer = new StreamWriter(stream, encoding: encoding, leaveOpen: leaveOpen);
+
 			if (lineEndSequence != null) _writer.NewLine = lineEndSequence;
 			_addBlankLinesBetweenSections = addBlankLinesBetweenSections;
 			_escapeStrings = escapeStrings;

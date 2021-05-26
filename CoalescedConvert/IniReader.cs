@@ -31,9 +31,18 @@ namespace CoalescedConvert
 		private bool _unescapeStrings;
 		private CoalFormat _format;
 
-		public IniReader(Stream stream, bool hasEmbeddedFileNames, bool unescapeStrings = true, bool getFormatFromHeader = false)
+		public IniReader(Stream stream, bool hasEmbeddedFileNames, bool unescapeStrings = true, bool getFormatFromHeader = false, Encoding encoding = null)
 		{
-			_rdr = new StreamReader(stream ?? throw new ArgumentNullException(nameof(stream)));
+			if (stream == null) throw new ArgumentNullException(nameof(stream));
+
+			if (encoding != null)
+			{
+				_rdr = new StreamReader(stream, encoding: encoding);
+			}
+			else
+			{
+				_rdr = new StreamReader(stream);
+			}
 			_hasEmbeddedFileNames = hasEmbeddedFileNames;
 			_unescapeStrings = unescapeStrings;
 

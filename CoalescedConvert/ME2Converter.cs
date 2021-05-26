@@ -7,7 +7,7 @@ namespace CoalescedConvert
 {
 	class ME2Converter : CoalConverter
 	{
-		private Encoding _encoding = Encoding.GetEncoding(1252);
+		private Encoding _encoding = new ExtendedAsciiEncoding();
 
 		public override CoalDocument Load(Stream stream)
 		{
@@ -32,7 +32,7 @@ namespace CoalescedConvert
 					var numFields = 0;
 
 					using (var ms = new MemoryStream(_encoding.GetBytes(fileContent)))
-					using (var ini = new IniReader(ms, hasEmbeddedFileNames: false, unescapeStrings: false))
+					using (var ini = new IniReader(ms, hasEmbeddedFileNames: false, unescapeStrings: false, encoding: _encoding))
 					{
 						while (!ini.EndOfStream)
 						{
@@ -74,7 +74,8 @@ namespace CoalescedConvert
 					using (var ini = new IniWriter(sectionMS, format: null,
 						lineEndSequence: "\n",
 						addBlankLinesBetweenSections: false,
-						escapeStrings: false))
+						escapeStrings: false,
+						encoding: _encoding))
 					{
 						foreach (var section in file.Sections)
 						{
