@@ -7,6 +7,8 @@ Supported File Formats:
 - Mass Effect 3
 - Mass Effect Legendary Edition (1, 2, and 3)
 
+This app requires .NET 5 to run. If needed you can download it [here](https://dotnet.microsoft.com/download/dotnet/5.0). (Look for .NET Desktop Runtime)
+
 ## Example
 This example will use MassEffect 1 Legendary Edition, downloaded by Origin. Your paths may differ.
 
