@@ -117,16 +117,18 @@ namespace CoalescedConvert
 			Log.Verbose = _verbose;
 
 			if (!File.Exists(_inputFileName)) throw new FileNotFoundException($"The file '{_inputFileName}' could not be found.");
-			var fmt = CoalescedFormatDetector.Detect(_inputFileName);
-			var converter = CoalescedConverter.Create(fmt.Format);
+			var fmt = CoalFormatDetector.Detect(_inputFileName);
+			var converter = CoalConverter.Create(fmt.Format);
 
 			if (fmt.IsExport)
 			{
+				// ini -> bin
+
 				if (string.IsNullOrEmpty(_outputFileName))
 				{
 					var dir = Path.GetDirectoryName(_inputFileName);
 					var fn = Path.GetFileNameWithoutExtension(_inputFileName);
-					var dstExt = CoalescedFormatDetector.GetExtension(fmt.Format).ToLower();
+					var dstExt = CoalFormatDetector.GetExtension(fmt.Format).ToLower();
 					var srcExt = Path.GetExtension(_inputFileName).ToLower();
 					if (fn.EndsWith("-export"))
 					{
@@ -160,10 +162,29 @@ namespace CoalescedConvert
 					}
 				}
 
-				converter.Encode(_inputFileName, _outputFileName);
+				var doc = null as CoalDocument;
+				using (var fs = new FileStream(_inputFileName, FileMode.Open))
+				{
+					doc = CoalDocument.Load(fs);
+				}
+
+				using (var ms = new MemoryStream())
+				{
+					converter.Save(doc, ms, leaveStreamOpen: true);
+
+					if (!_whatIf)
+					{
+						var bytes = new byte[ms.Length];
+						ms.Position = 0;
+						ms.Read(bytes);
+						File.WriteAllBytes(_outputFileName, bytes);
+					}
+				}
 			}
 			else
 			{
+				// bin -> ini
+
 				if (string.IsNullOrEmpty(_outputFileName))
 				{
 					var dir = Path.GetDirectoryName(_inputFileName);
@@ -176,7 +197,24 @@ namespace CoalescedConvert
 				Log.Heading($"To INI:");
 				Log.Info(_outputFileName);
 
-				converter.Decode(_inputFileName, _outputFileName);
+				var doc = null as CoalDocument;
+				using (var fs = new FileStream(_inputFileName, FileMode.Open))
+				{
+					doc = converter.Load(fs);
+				}
+
+				using (var ms = new MemoryStream())
+				{
+					doc.Save(ms);
+
+					if (!_whatIf)
+					{
+						var bytes = new byte[ms.Length];
+						ms.Position = 0;
+						ms.Read(bytes);
+						File.WriteAllBytes(_outputFileName, bytes);
+					}
+				}
 			}
 
 			if (_whatIf) Log.Success("No changes made");

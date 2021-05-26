@@ -8,13 +8,13 @@ namespace CoalescedConvert
 	class IniWriter : IDisposable
 	{
 		private StreamWriter _writer;
-		private bool _fieldsWritten;
+		private bool _firstSection;
 		private bool _addBlankLinesBetweenSections;
 		private bool _escapeStrings;
 
 		public const char EscapeChar = '^';
 
-		public IniWriter(Stream stream, CoalescedFormat? format, bool leaveOpen = false, string lineEndSequence = null, bool addBlankLinesBetweenSections = true, bool escapeStrings = true)
+		public IniWriter(Stream stream, CoalFormat? format, bool leaveOpen = false, string lineEndSequence = null, bool addBlankLinesBetweenSections = true, bool escapeStrings = true)
 		{
 			_writer = new StreamWriter(stream ?? throw new ArgumentNullException(nameof(stream)), leaveOpen: leaveOpen);
 			if (lineEndSequence != null) _writer.NewLine = lineEndSequence;
@@ -23,8 +23,10 @@ namespace CoalescedConvert
 
 			if (format.HasValue)
 			{
-				_writer.WriteLine(string.Concat(CoalescedFormatDetector.IniFirstLine, " ", format.ToString()));
+				_writer.WriteLine(string.Concat(CoalFormatDetector.IniFirstLine, " ", format.ToString()));
 			}
+
+			_firstSection = true;
 		}
 
 		public void Dispose()
@@ -40,10 +42,13 @@ namespace CoalescedConvert
 
 		public void WriteSection(string fileName, string sectionName)
 		{
-			if (_fieldsWritten)
+			if (_firstSection)
+			{
+				_firstSection = false;
+			}
+			else
 			{
 				if (_addBlankLinesBetweenSections) _writer.WriteLine();
-				_fieldsWritten = false;
 			}
 
 			_writer.Write('[');
@@ -57,10 +62,13 @@ namespace CoalescedConvert
 
 		public void WriteSection(string sectionName)
 		{
-			if (_fieldsWritten)
+			if (_firstSection)
+			{
+				_firstSection = false;
+			}
+			else
 			{
 				if (_addBlankLinesBetweenSections) _writer.WriteLine();
-				_fieldsWritten = false;
 			}
 
 			_writer.Write('[');
@@ -76,8 +84,6 @@ namespace CoalescedConvert
 			_writer.Write('=');
 			if (_escapeStrings) _writer.WriteLine(IniEncode(value));
 			else _writer.WriteLine(value);
-
-			_fieldsWritten = true;
 		}
 
 		public void WriteField(string name, IEnumerable<string> values)

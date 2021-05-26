@@ -2,156 +2,90 @@
 using System.Collections.Generic;
 using System.IO;
 
+// TODO: This is now broken - there are differences between factory and reassembled
+
 namespace CoalescedConvert
 {
-	class ME12LEConverter : CoalescedConverter
+	class ME12LEConverter : CoalConverter
 	{
-		public override void Decode(string binFileName, string iniFileName)
+		public override CoalDocument Load(Stream stream)
 		{
-			using (var fs = new FileStream(binFileName, FileMode.Open))
-			using (var bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect12LE))
-			using (var iniMS = new MemoryStream())
-			using (var ini = new IniWriter(iniMS, CoalescedFormat.MassEffect12LE))
+			var doc = new CoalDocument(CoalFormat.MassEffect12LE);
+
+			using (var bin = new CoalFileStream(stream, CoalFormat.MassEffect12LE))
 			{
 				var fileCount = bin.ReadInt();
-				Log.Debug("Num files: {0}", fileCount);
+				Log.Debug("[{1:X8}] Num files: {0}", fileCount, bin.Position);
 
 				for (int fileIndex = 0; fileIndex < fileCount; fileIndex++)
 				{
 					var fileName = bin.ReadString();
-					Log.Debug("File name: {0}", fileName);
+					Log.Debug("[{1:X8}] File name: {0}", fileName, bin.Position);
+					var file  = new CoalFile(fileName);
+					doc.Files.Add(file);
+
 					var sectionCount = bin.ReadInt();
-					Log.Debug("Section count: {0}", sectionCount);
+					Log.Debug("[{1:X8}] Section count: {0}", sectionCount, bin.Position);
 
 					if (sectionCount > 0)
 					{
 						for (int sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++)
 						{
 							var sectionName = bin.ReadString();
-							ini.WriteSection(fileName, sectionName);
+							//Log.Debug("[{1:X8}] Section name: {0}", sectionName, bin.Position);
 
-							var numItems = bin.ReadInt();
+							var section = new CoalSection(sectionName);
+							file.Sections.Add(section);
 
-							for (int i = 0; i < numItems; i++)
+							var numFields = bin.ReadInt();
+							//Log.Debug("[{1:X8}] Num fields: {0}", numFields, bin.Position);
+
+							for (int i = 0; i < numFields; i++)
 							{
-								var str = bin.ReadString();
-								var str2 = bin.ReadString();
-								ini.WriteField(str, str2);
+								var fieldName = bin.ReadString();
+								//Log.Debug("[{1:X8}] Field name: {0}", fieldName, bin.Position);
+
+								var fieldValue = bin.ReadString();
+								section.Fields.Add(new CoalField(fieldName, fieldValue));
 							}
 						}
 					}
 					else
 					{
-						ini.WriteSection(fileName, null);	// So the file still gets created, even though there's nothing in it.
+						file.Sections.Add(new CoalSection(string.Empty));   // So the file still gets created, even though there's nothing in it.
 					}
 				}
-
-				ini.Flush();
-
-				if (!WhatIf)
-				{
-					var iniContent = new byte[iniMS.Length];
-					iniMS.Seek(0, SeekOrigin.Begin);
-					iniMS.Read(iniContent);
-					File.WriteAllBytes(iniFileName, iniContent);
-				}
 			}
+
+			return doc;
 		}
 
-		public override void Encode(string iniFileName, string binFileName)
+		public override void Save(CoalDocument doc, Stream stream, bool leaveStreamOpen)
 		{
-			var doc = new EncDoc();
-			var currentSection = null as EncSection;
-			var currentFile = null as EncFile;
-
-			using (var fs = new FileStream(iniFileName, FileMode.Open))
-			using (var ini = new IniReader(fs, hasEmbeddedFileNames: true))
+			using (var bin = new CoalFileStream(stream, CoalFormat.MassEffect12LE, leaveOpen: leaveStreamOpen))
 			{
-				while (!ini.EndOfStream)
+				bin.WriteInt(doc.Files.Count);
+				foreach (var file in doc.Files)
 				{
-					var read = ini.Read();
-					if (read.Type == IniReadResultType.Section)
+					bin.WriteString(file.FileName);
+					bin.WriteInt(file.Sections.Count);
+					foreach (var section in file.Sections)
 					{
-						if (currentFile == null || read.Value1 != currentFile.fileName)
+						bin.WriteString(section.Name);
+						bin.WriteInt(section.ValueCount);
+						foreach (var field in section.Fields)
 						{
-							doc.files.Add(currentFile = new EncFile { fileName = read.Value1 });
-						}
-
-						if (read.Value2.Length > 0)
-						{
-							currentFile.sections.Add(currentSection = new EncSection { name = read.Value2 });
-						}
-						else
-						{
-							currentSection = null;
-						}
-					}
-					else if (read.Type == IniReadResultType.Field)
-					{
-						if (currentSection == null) throw new IniNoCurrentSectionException(read.LineNumber);
-						currentSection.fields.Add(new EncField
-						{
-							name = read.Value1,
-							value = read.Value2
-						});
-					}
-					else break;
-				}
-			}
-
-			using (var ms = new MemoryStream())
-			using (var bin = new CoalescedFileStream(ms, CoalescedFormat.MassEffect12LE))
-			{
-				bin.WriteInt(doc.files.Count);
-				foreach (var file in doc.files)
-				{
-					bin.WriteString(file.fileName);
-					bin.WriteInt(file.sections.Count);
-					foreach (var section in file.sections)
-					{
-						bin.WriteString(section.name);
-						bin.WriteInt(section.fields.Count);
-						foreach (var field in section.fields)
-						{
-							bin.WriteString(field.name);
-							bin.WriteString(field.value);
+							foreach (var value in field.Values)
+							{
+								bin.WriteString(field.Name);
+								bin.WriteString(value);
+							}
 						}
 					}
 				}
 
 				bin.Flush();
-
-				if (!WhatIf)
-				{
-					var content = new byte[ms.Length];
-					ms.Seek(0, SeekOrigin.Begin);
-					ms.Read(content);
-					File.WriteAllBytes(binFileName, content);
-				}
 			}
-		}
-
-		private class EncDoc
-		{
-			public List<EncFile> files = new List<EncFile>();
-		}
-
-		private class EncFile
-		{
-			public string fileName;
-			public List<EncSection> sections = new List<EncSection>();
-		}
-
-		private class EncSection
-		{
-			public string name;
-			public List<EncField> fields = new List<EncField>();
-		}
-
-		private class EncField
-		{
-			public string name;
-			public string value;
 		}
 	}
 }

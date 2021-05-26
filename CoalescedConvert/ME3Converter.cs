@@ -7,34 +7,33 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	class ME3Converter : CoalescedConverter
+	class ME3Converter : CoalConverter
 	{
-		private CoalescedFileStream _bin;
+		private CoalFileStream _bin;
 		private StringTable _strings;
 
-		private ME3Doc _doc;
 		private uint _compressedDataLength;
 
 		private const uint Type_String = 4;
 
-		public override void Decode(string binFileName, string iniFileName)
+		public override CoalDocument Load(Stream stream)
 		{
-			using (var fs = new FileStream(binFileName, FileMode.Open))
-			using (_bin = new CoalescedFileStream(fs, CoalescedFormat.MassEffect3))
+			var doc = null as CoalDocument;
+
+			using (_bin = new CoalFileStream(stream, CoalFormat.MassEffect3))
 			{
 				ReadHeader();
 				ReadStringTable();
 				var huffmanNodes = ReadHuffmanNodes();
-				ReadTree();
-				ReadCompressedData(huffmanNodes);
+				doc = ReadTree();
+				ReadCompressedData(huffmanNodes, doc);
 			}
 
-			WriteIni(iniFileName);
+			return doc;
 		}
 
-		public override void Encode(string iniFileName, string binFileName)
+		public override void Save(CoalDocument doc, Stream stream, bool leaveStreamOpen)
 		{
-			var doc = ReadIniToDocument(iniFileName);
 			var compressor = new HuffmanCompressor();
 
 			_strings = new StringTable(1024);
@@ -65,19 +64,13 @@ namespace CoalescedConvert
 			WriteCompressedData(compressor, buf);
 			Log.Debug("Compressed data section end: 0x{0:X8}", buf.Length);
 
-			if (!WhatIf)
-			{
-				using (var fs = new FileStream(binFileName, FileMode.Create))
-				{
-					buf.WriteToStream(fs);
-				}
-			}
+			buf.WriteToStream(stream);
 		}
 
 		private void ReadHeader()
 		{
 			var sig = _bin.ReadInt();
-			if (sig != CoalescedFormatDetector.ME3Signature) throw new CoalescedReadException("File does not start with standard signature. This may be the incorrect format.");
+			if (sig != CoalFormatDetector.ME3Signature) throw new CoalescedReadException("File does not start with standard signature. This may be the incorrect format.");
 
 			var version = _bin.ReadInt();
 			if (version != 1) throw new CoalescedReadException("File version is not 1. This may be the incorrect format.");
@@ -90,7 +83,7 @@ namespace CoalescedConvert
 			_compressedDataLength = _bin.ReadUInt();
 		}
 
-		private void WriteHeader(BinaryBuffer buf, ME3Doc doc, BinaryBuffer stringTableBuf, BinaryBuffer treeBuf, HuffmanCompressor compressor)
+		private void WriteHeader(BinaryBuffer buf, CoalDocument doc, BinaryBuffer stringTableBuf, BinaryBuffer treeBuf, HuffmanCompressor compressor)
 		{
 			var maxFieldNameLength = 0;
 			var maxFieldValueLength = 0;
@@ -109,7 +102,7 @@ namespace CoalescedConvert
 				}
 			}
 
-			buf.WriteInt(CoalescedFormatDetector.ME3Signature);
+			buf.WriteInt(CoalFormatDetector.ME3Signature);
 			buf.WriteInt(1);
 			buf.WriteInt(maxFieldNameLength);
 			buf.WriteInt(maxFieldValueLength);
@@ -217,11 +210,11 @@ namespace CoalescedConvert
 			foreach (var n in data) buf.WriteInt(n);
 		}
 
-		private void ReadTree()
+		private CoalDocument ReadTree()
 		{
 			Log.Debug("Tree start: 0x{0:X8}", _bin.Position);
 
-			_doc = new ME3Doc();
+			var doc = new CoalDocument(CoalFormat.MassEffect3);
 
 			var numFiles = _bin.ReadUShort();
 			Log.Debug("Number of files: {0}", numFiles);
@@ -231,12 +224,12 @@ namespace CoalescedConvert
 				var fileNameId = _bin.ReadUShort();
 				var fileName = _strings.GetString(fileNameId);
 				_bin.ReadUInt();
-				_doc.Files.Add(new ME3File(fileName));
+				doc.Files.Add(new CoalFile(fileName));
 			}
 
 			for (int fileIndex = 0; fileIndex < numFiles; fileIndex++)
 			{
-				var file = _doc.Files[fileIndex];
+				var file = doc.Files[fileIndex];
 				Log.Debug("File: {0} Position: 0x{1:X8}", file.FileName, _bin.Position);
 
 				var numSections = _bin.ReadUShort();
@@ -246,7 +239,7 @@ namespace CoalescedConvert
 				{
 					var sectionName = _strings.GetString(_bin.ReadUShort());
 					_bin.ReadUInt();
-					file.Sections.Add(new ME3Section(sectionName));
+					file.Sections.Add(new CoalSection(sectionName));
 				}
 
 				for (int sectionIndex = 0; sectionIndex < numSections; sectionIndex++)
@@ -262,7 +255,7 @@ namespace CoalescedConvert
 						var fieldNameId = _bin.ReadUShort();
 						var fieldName = _strings.GetString(fieldNameId);
 						_bin.ReadUInt();
-						section.Fields.Add(new ME3Field(fieldName));
+						section.Fields.Add(new CoalField(fieldName));
 					}
 
 					for (int fieldIndex = 0; fieldIndex < numFields; fieldIndex++)
@@ -272,16 +265,17 @@ namespace CoalescedConvert
 
 						for (int valueIndex = 0; valueIndex < numValues; valueIndex++)
 						{
-							field.Offsets.Add(_bin.ReadUInt());
+							field.Values.Add(_bin.ReadUInt().ToString());
 						}
 					}
 				}
 			}
 
 			Log.Debug("Tree end: 0x{0:X8}", _bin.Position);
+			return doc;
 		}
 
-		private BinaryBuffer WriteTree(ME3Doc doc, HuffmanCompressor compressor)
+		private BinaryBuffer WriteTree(CoalDocument doc, HuffmanCompressor compressor)
 		{
 			foreach (var file in doc.Files)
 			{
@@ -353,7 +347,7 @@ namespace CoalescedConvert
 			return treeBuf;
 		}
 
-		private void ReadCompressedData(int[] huffmanNodes)
+		private void ReadCompressedData(int[] huffmanNodes, CoalDocument doc)
 		{
 			Log.Debug("Compressed data section start: 0x{0:X8}", _bin.Position);
 
@@ -363,18 +357,19 @@ namespace CoalescedConvert
 			var values = new List<string>();
 			var decomp = new HuffmanDecompressor(huffmanNodes, compressedData);
 
-			foreach (var file in _doc.Files)
+			foreach (var file in doc.Files)
 			{
 				foreach (var section in file.Sections)
 				{
 					foreach (var field in section.Fields)
 					{
-						foreach (var offset in field.Offsets)
+						for (int v = 0, vv = field.Values.Count; v < vv; v++)
 						{
+							var offset = uint.Parse(field.Values[v]);
 							var str = decomp.GetString((int)(offset & 0xFFFFFFF));
 							var type = offset >> 28;
 							if (type != Type_String) throw new UnsupportedValueType(type);
-							field.Values.Add(str);
+							field.Values[v] = str;
 						}
 					}
 				}
@@ -388,136 +383,6 @@ namespace CoalescedConvert
 			var compressedData = compressor.CompressedData;
 			buf.WriteInt(compressedData.Length);
 			buf.WriteBytes(compressedData);
-		}
-
-		private void WriteIni(string fileName)
-		{
-			using (var ms = new MemoryStream())
-			using (var ini = new IniWriter(ms, CoalescedFormat.MassEffect3))
-			{
-				foreach (var file in _doc.Files)
-				{
-					if (!file.Sections.Any())
-					{
-						ini.WriteSection(file.FileName, null);
-						continue;
-					}
-					foreach (var section in file.Sections)
-					{
-						ini.WriteSection(file.FileName, section.Name);
-						foreach (var field in section.Fields)
-						{
-							if (!field.Values.Any())
-							{
-								ini.WriteField(field.Name, string.Empty);
-								continue;
-							}
-
-							ini.WriteField(field.Name, field.Values);
-						}
-					}
-				}
-
-				ini.Flush();
-
-				if (!WhatIf)
-				{
-					var iniContent = new byte[ms.Length];
-					ms.Seek(0, SeekOrigin.Begin);
-					ms.Read(iniContent);
-					File.WriteAllBytes(fileName, iniContent);
-				}
-			}
-		}
-
-		private ME3Doc ReadIniToDocument(string fileName)
-		{
-			var doc = new ME3Doc();
-
-			using (var fs = new FileStream(fileName, FileMode.Open))
-			using (var ini = new IniReader(fs, hasEmbeddedFileNames: true))
-			{
-				while (!ini.EndOfStream)
-				{
-					var read = ini.Read();
-					if (read.Type == IniReadResultType.Section)
-					{
-						if (doc.Files.Count == 0 || doc.Files.Last().FileName != read.Value1)
-						{
-							doc.Files.Add(new ME3File(read.Value1));
-						}
-
-						var file = doc.Files.Last();
-						if (file.Sections.Count == 0 || file.Sections.Last().Name != read.Value2)
-						{
-							file.Sections.Add(new ME3Section(read.Value2));
-						}
-					}
-					else if (read.Type == IniReadResultType.Field)
-					{
-						var section = doc.Files.LastOrDefault()?.Sections.LastOrDefault();
-						if (section == null) throw new IniNoCurrentSectionException(read.LineNumber);
-
-						var field = section.Fields.LastOrDefault();
-						if (field?.Name == read.Value1)
-						{
-							field.Values.Add(read.Value2);
-						}
-						else
-						{
-							section.Fields.Add(new ME3Field(read.Value1, read.Value2));
-						}
-					}
-					else break;
-				}
-			}
-
-			return doc;
-		}
-
-		private class ME3Doc
-		{
-			public List<ME3File> Files { get; private set; } = new List<ME3File>();
-		}
-
-		private class ME3File
-		{
-			public string FileName { get; private set; }
-			public List<ME3Section> Sections { get; private set; } = new List<ME3Section>();
-
-			public ME3File(string fileName)
-			{
-				FileName = fileName;
-			}
-		}
-
-		private class ME3Section
-		{
-			public string Name { get; private set; }
-			public List<ME3Field> Fields { get; private set; } = new List<ME3Field>();
-
-			public ME3Section(string name)
-			{
-				Name = name;
-			}
-		}
-
-		private class ME3Field
-		{
-			public string Name { get; private set; }
-			public List<uint> Offsets { get; private set; } = new List<uint>();
-			public List<string> Values { get; private set; } = new List<string>();
-
-			public ME3Field(string name)
-			{
-				Name = name;
-			}
-
-			public ME3Field(string name, string value)
-			{
-				Name = name;
-				Values.Add(value);
-			}
 		}
 	}
 }

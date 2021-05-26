@@ -7,25 +7,25 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	public enum CoalescedFormat
+	public enum CoalFormat
 	{
 		MassEffect2,
 		MassEffect3,
 		MassEffect12LE
 	}
 
-	public class CoalescedFormatDetector
+	public class CoalFormatDetector
 	{
 		public const int ME2Signature = 0x1e;
 		public const int ME3Signature = 0x666d726d; // Appears as 'mrmf' in the file.
 		public const int ME3Version = 1;
 		public const string IniFirstLine = "; CoalescedConvert Export";
 
-		public static string GetExtension(CoalescedFormat format)
+		public static string GetExtension(CoalFormat format)
 		{
 			switch (format)
 			{
-				case CoalescedFormat.MassEffect2:
+				case CoalFormat.MassEffect2:
 					return ".ini";
 				default:
 					return ".bin";
@@ -46,7 +46,7 @@ namespace CoalescedConvert
 				{
 					return new FormatDetectionResult
 					{
-						Format = CoalescedFormat.MassEffect2,
+						Format = CoalFormat.MassEffect2,
 						IsExport = false
 					};
 				}
@@ -56,7 +56,7 @@ namespace CoalescedConvert
 				{
 					return new FormatDetectionResult
 					{
-						Format = CoalescedFormat.MassEffect3,
+						Format = CoalFormat.MassEffect3,
 						IsExport = false
 					};
 				}
@@ -71,7 +71,7 @@ namespace CoalescedConvert
 					{
 						return new FormatDetectionResult
 						{
-							Format = CoalescedFormat.MassEffect12LE,
+							Format = CoalFormat.MassEffect12LE,
 							IsExport = false
 						};
 					}
@@ -79,7 +79,7 @@ namespace CoalescedConvert
 					{
 						return new FormatDetectionResult
 						{
-							Format = CoalescedFormat.MassEffect2,
+							Format = CoalFormat.MassEffect2,
 							IsExport = false
 						};
 					}
@@ -93,7 +93,7 @@ namespace CoalescedConvert
 					if (line != null && line.StartsWith(IniFirstLine))
 					{
 						var formatString = line.Substring(IniFirstLine.Length).Trim();
-						if (Enum.TryParse<CoalescedFormat>(formatString, ignoreCase: true, out var format))
+						if (Enum.TryParse<CoalFormat>(formatString, ignoreCase: true, out var format))
 						{
 							return new FormatDetectionResult
 							{
@@ -112,7 +112,7 @@ namespace CoalescedConvert
 
 		public struct FormatDetectionResult
 		{
-			public CoalescedFormat Format { get; set; }
+			public CoalFormat Format { get; set; }
 			public bool IsExport { get; set; }
 		}
 	}

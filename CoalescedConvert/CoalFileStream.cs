@@ -7,23 +7,25 @@ using System.Threading.Tasks;
 
 namespace CoalescedConvert
 {
-	class CoalescedFileStream : IDisposable
+	class CoalFileStream : IDisposable
 	{
 		private Stream _fs;
-		private CoalescedFormat _format;
+		private CoalFormat _format;
 		private long _valuePos;
+		private bool _leaveOpen;
 
-		public CoalescedFileStream(Stream stream, CoalescedFormat format)
+		public CoalFileStream(Stream stream, CoalFormat format, bool leaveOpen = false)
 		{
 			_fs = stream ?? throw new ArgumentNullException(nameof(stream));
 			_format = format;
+			_leaveOpen = leaveOpen;
 		}
 
 		public long ValuePosition => _valuePos;
 
 		public void Dispose()
 		{
-			_fs?.Dispose();
+			if (!_leaveOpen) _fs?.Dispose();
 			_fs = null;
 		}
 
@@ -139,7 +141,7 @@ namespace CoalescedConvert
 
 		public string ReadString()
 		{
-			if (_format == CoalescedFormat.MassEffect12LE)
+			if (_format == CoalFormat.MassEffect12LE)
 			{
 				var pos = _fs.Position;
 				var len = ReadInt();
@@ -157,7 +159,7 @@ namespace CoalescedConvert
 				_valuePos = pos;
 				return sb.ToString();
 			}
-			else if (_format == CoalescedFormat.MassEffect2)
+			else if (_format == CoalFormat.MassEffect2)
 			{
 				var pos = _fs.Position;
 				var len = ReadInt();
@@ -174,7 +176,7 @@ namespace CoalescedConvert
 				_valuePos = pos;
 				return sb.ToString();
 			}
-			else if (_format == CoalescedFormat.MassEffect3)
+			else if (_format == CoalFormat.MassEffect3)
 			{
 				var pos = _fs.Position;
 				var len = ReadShort();
@@ -196,7 +198,7 @@ namespace CoalescedConvert
 
 		public void WriteString(string str)
 		{
-			if (_format == CoalescedFormat.MassEffect12LE)
+			if (_format == CoalFormat.MassEffect12LE)
 			{
 				if (str.Length == 0)
 				{
@@ -214,7 +216,7 @@ namespace CoalescedConvert
 					WriteByte(0);
 				}
 			}
-			else if (_format == CoalescedFormat.MassEffect2)
+			else if (_format == CoalFormat.MassEffect2)
 			{
 				if (str.Length == 0)
 				{
@@ -230,7 +232,7 @@ namespace CoalescedConvert
 					WriteByte(0);
 				}
 			}
-			else if (_format == CoalescedFormat.MassEffect3)
+			else if (_format == CoalFormat.MassEffect3)
 			{
 #if CC_UTF8
 				var bytes = Encoding.UTF8.GetBytes(str);

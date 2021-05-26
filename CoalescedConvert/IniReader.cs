@@ -29,12 +29,22 @@ namespace CoalescedConvert
 		private int _lineNumber;
 		private bool _hasEmbeddedFileNames;
 		private bool _unescapeStrings;
+		private CoalFormat _format;
 
-		public IniReader(Stream stream, bool hasEmbeddedFileNames, bool unescapeStrings = true)
+		public IniReader(Stream stream, bool hasEmbeddedFileNames, bool unescapeStrings = true, bool getFormatFromHeader = false)
 		{
 			_rdr = new StreamReader(stream ?? throw new ArgumentNullException(nameof(stream)));
 			_hasEmbeddedFileNames = hasEmbeddedFileNames;
 			_unescapeStrings = unescapeStrings;
+
+			if (getFormatFromHeader)
+			{
+				var line = _rdr.ReadLine();
+				if (!line.StartsWith(CoalFormatDetector.IniFirstLine)) throw new UnknownCoalescedFormatException();
+
+				var formatString = line.Substring(CoalFormatDetector.IniFirstLine.Length).Trim();
+				if (!Enum.TryParse<CoalFormat>(formatString, ignoreCase: true, out _format)) throw new UnknownCoalescedFormatException();
+			}
 		}
 
 		public void Dispose()
@@ -44,6 +54,7 @@ namespace CoalescedConvert
 		}
 
 		public bool EndOfStream => _rdr.EndOfStream;
+		public CoalFormat Format => _format;
 
 		private static readonly Regex _rxComment = new Regex(@"^\s*;");
 		private static readonly Regex _rxSection = new Regex(@"^\[(.+)\]\s*$");
