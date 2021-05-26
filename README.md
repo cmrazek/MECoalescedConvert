@@ -24,6 +24,8 @@ This will create a new file __Coalesced_INT-export.ini__ in the same folder. Usi
 
 Once you've completed your changes, run __mecoalc.exe__ again, this time passing in the file name of the text file you just edited.
 
+`.\mecoalc "C:\Program Files (x86)\Origin Games\Mass Effect Legendary Edition\Game\ME1\BioGame\CookedPCConsole\Coalesced_INT-export.ini"`
+
 ![Encoding Using PowerShell](https://raw.githubusercontent.com/cmrazek/MECoalescedConvert/master/assets/encode-ps.png)
 
 The first time this is done, the app will make a backup of the original file, and will then save your changes to __Coalesced_INT.bin__.
