@@ -46,7 +46,7 @@ namespace CoalescedConvert
 			Log.Info("  Converts a Mass Effect Coalesced file into an INI file, or vice-versa.");
 			Log.NewLine();
 			Log.Heading("Usage:");
-			Log.Info("> mecoalc.exe <input_file_name> [switches]");
+			Log.Info("> mecc.exe <input_file_name> [switches]");
 			Log.NewLine();
 			Log.Heading("Switches");
 			Log.Info("-h, --help             Show this help info.");
@@ -57,13 +57,13 @@ namespace CoalescedConvert
 			Log.Heading("Example:");
 			Log.NewLine();
 			Log.Info("Export \"Coalesced_INT.bin\" into an INI file:");
-			Log.Info("> mecoalc.exe \"Coalesced_INT.bin\"");
+			Log.Info("> mecc.exe \"Coalesced_INT.bin\"");
 			Log.Info("This generates a new file \"Coalesced-export.ini\" in the same folder.");
 			Log.NewLine();
 			Log.Info("(make your changes to the INI file)");
 			Log.NewLine();
 			Log.Info("Import \"Coalesced_INT-export.ini\" back into \"Coalesced_INT.bin\":");
-			Log.Info("> mecoalc.exe \"Coalesced_INT.bin\"");
+			Log.Info("> mecc.exe \"Coalesced_INT.bin\"");
 			Log.Info("This creates a backup of \"Coalesced_INT.bin\" and overwrites the file with the");
 			Log.Info("changes you've made to \"Coalesced_INT-export.ini\".");
 			Log.NewLine();
