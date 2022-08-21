@@ -29,7 +29,7 @@ namespace CoalescedConvert
 
 		public ushort GetId(string str)
 		{
-			return _map.TryGetValue(str.ToLower(), out var id) ? (ushort)id : 0;
+			return _map.TryGetValue(str.ToLower(), out var id) ? (ushort)id : (ushort)0;
 		}
 
 		public string GetString(int id)
