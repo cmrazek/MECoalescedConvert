@@ -1,0 +1,76 @@
+name: "Create release with published assets"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+      release_notes:
+        description: "Release notes"
+        required: true
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          body: ${{ inputs.release_notes }}
+          name: "Mass Effect Coalesced Convert"
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          tag: ${{ format('v{0}', inputs.version) }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      releaseUploadUrl: ${{ steps.create_release.outputs.upload_url }}
+  
+  generate-asset-and-upload:
+    needs: [ create-release ]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [ linux-x64, linux-musl-x64, linux-arm, linux-arm64, osx-x64, win-x86, win-x64, win-arm, win-arm64 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: 6.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: dotnet test --no-build -c Release --verbosity normal
+
+      - name: Publish App for RID ${{ matrix.rid }}
+        run: dotnet publish ConsoleApp/ConsoleApp.csproj -p:PublishTrimmed=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -c Release --runtime ${{matrix.rid}} --self-contained
+
+      - name: Upload Windows release asset for RID ${{ matrix.rid }}
+        if: startsWith(matrix.rid, 'win')
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.releaseUploadUrl }}
+          asset_path: ${{ format('ConsoleApp/bin/Release/net6.0/{0}/publish/mecc.exe', matrix.rid) }}
+          asset_name: ${{ format('mecc.exe ({0})', matrix.rid) }}
+          asset_content_type: 'application/octet-stream'
+
+      - name: Upload non-Windows release asset for RID ${{ matrix.rid }}
+        if: startsWith(matrix.rid, 'win') == false
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.releaseUploadUrl }}
+          asset_path: ${{ format('ConsoleApp/bin/Release/net6.0/{0}/publish/mecc', matrix.rid) }}
+          asset_name: ${{ format('mecc ({0})', matrix.rid) }}
+          asset_content_type: 'application/octet-stream'
